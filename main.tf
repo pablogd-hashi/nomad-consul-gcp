@@ -1,3 +1,15 @@
+terraform { 
+  cloud { 
+    
+    organization = "pablogd-hcp-test" 
+
+    workspaces { 
+      name = "hashistack-terramino-nomad-consul" 
+    } 
+  } 
+}
+
+
 terraform {
   required_version = ">= 1.0"
   required_providers {
