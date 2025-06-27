@@ -38,6 +38,7 @@ resource "google_compute_instance" "nomad_servers" {
       consul_master_token  = random_uuid.consul_master_token.result
       nomad_consul_token   = random_uuid.nomad_consul_token.result
       nomad_server_token   = random_uuid.nomad_server_token.result
+      nomad_client_token   = random_uuid.nomad_client_token.result
       consul_license       = var.consul_license
       nomad_license        = var.nomad_license
       server_index         = count.index + 1

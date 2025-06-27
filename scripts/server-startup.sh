@@ -1,19 +1,22 @@
 #!/bin/bash
 set -e
 
-# Template variables
+# Template variables (these names must match what's passed from Terraform)
 CONSUL_VERSION="${consul_version}"
 NOMAD_VERSION="${nomad_version}"
 CONSUL_DATACENTER="${consul_datacenter}"
 NOMAD_DATACENTER="${nomad_datacenter}"
 CONSUL_ENCRYPT_KEY="${consul_encrypt_key}"
 CONSUL_MASTER_TOKEN="${consul_master_token}"
+NOMAD_CONSUL_TOKEN="${nomad_consul_token}"
+NOMAD_SERVER_TOKEN="${nomad_server_token}"
 NOMAD_CLIENT_TOKEN="${nomad_client_token}"
 CONSUL_LICENSE="${consul_license}"
 NOMAD_LICENSE="${nomad_license}"
-CLIENT_INDEX="${client_index}"
+SERVER_INDEX="${server_index}"
+SERVER_COUNT="${server_count}"
 CA_CERT="${ca_cert}"
-SERVER_IPS="${server_ips}"
+CA_KEY="${ca_key}"
 SUBNET_CIDR="${subnet_cidr}"
 ENABLE_ACLS="${enable_acls}"
 ENABLE_TLS="${enable_tls}"
@@ -29,7 +32,7 @@ ZONE=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/zone
 
 # Update system
 apt-get update
-apt-get install -y unzip curl jq docker.io docker-compose nginx
+apt-get install -y unzip curl jq docker.io docker-compose
 
 # Start and enable Docker
 systemctl start docker
@@ -62,21 +65,21 @@ ln -s /opt/nomad/bin/nomad /usr/local/bin/nomad
 
 # Create CA certificate
 echo "$CA_CERT" | base64 -d > /etc/ssl/hashistack/ca.pem
-chmod 644 /etc/ssl/hashistack/ca.pem
+echo "$CA_KEY" | base64 -d > /etc/ssl/hashistack/ca-key.pem
+chmod 600 /etc/ssl/hashistack/ca-key.pem
 
-# Generate client certificates
+# Generate server certificates
 if [ "$ENABLE_TLS" = "true" ]; then
-    # Generate Consul client certificate
-    consul tls cert create -client -dc $CONSUL_DATACENTER -ca /etc/ssl/hashistack/ca.pem -key /etc/ssl/hashistack/ca-key.pem
-    mv $CONSUL_DATACENTER-client-consul-0.pem /etc/ssl/hashistack/consul-client.pem
-    mv $CONSUL_DATACENTER-client-consul-0-key.pem /etc/ssl/hashistack/consul-client-key.pem
-    chmod 600 /etc/ssl/hashistack/consul-client-key.pem
+    # Generate Consul server certificate
+    consul tls cert create -server -dc $CONSUL_DATACENTER -ca /etc/ssl/hashistack/ca.pem -key /etc/ssl/hashistack/ca-key.pem
+    mv $CONSUL_DATACENTER-server-consul-0-key.pem /etc/ssl/hashistack/consul-server-key.pem
+    chmod 600 /etc/ssl/hashistack/consul-server-key.pem
 
-    # Generate Nomad client certificate
-    nomad tls cert create -client -ca /etc/ssl/hashistack/ca.pem -key /etc/ssl/hashistack/ca-key.pem
-    mv global-client-nomad.pem /etc/ssl/hashistack/nomad-client.pem
-    mv global-client-nomad-key.pem /etc/ssl/hashistack/nomad-client-key.pem
-    chmod 600 /etc/ssl/hashistack/nomad-client-key.pem
+    # Generate Nomad server certificate
+    nomad tls cert create -server -region global -ca /etc/ssl/hashistack/ca.pem -key /etc/ssl/hashistack/ca-key.pem
+    mv global-server-nomad.pem /etc/ssl/hashistack/nomad-server.pem
+    mv global-server-nomad-key.pem /etc/ssl/hashistack/nomad-server-key.pem
+    chmod 600 /etc/ssl/hashistack/nomad-server-key.pem
 fi
 
 # Create users
@@ -86,8 +89,8 @@ useradd --system --home /etc/nomad.d --shell /bin/false nomad
 # Set ownership
 chown -R consul:consul /opt/consul
 chown -R nomad:nomad /opt/nomad
-chown consul:consul /etc/ssl/hashistack/consul* 2>/dev/null || true
-chown nomad:nomad /etc/ssl/hashistack/nomad* 2>/dev/null || true
+chown consul:consul /etc/ssl/hashistack/consul*
+chown nomad:nomad /etc/ssl/hashistack/nomad*
 
 # Create Consul configuration
 cat > /opt/consul/config/consul.hcl << EOF
@@ -95,11 +98,16 @@ datacenter = "$CONSUL_DATACENTER"
 data_dir = "/opt/consul/data"
 log_level = "$CONSUL_LOG_LEVEL"
 node_name = "$INSTANCE_NAME"
+server = true
+bootstrap_expect = $SERVER_COUNT
+retry_join = ["provider=gce project_name=$PROJECT_ID tag_value=consul-server"]
 
 bind_addr = "$PRIVATE_IP"
 client_addr = "0.0.0.0"
 
-retry_join = ["provider=gce project_name=$PROJECT_ID tag_value=consul-server"]
+ui_config {
+  enabled = true
+}
 
 connect {
   enabled = true
@@ -118,7 +126,7 @@ acl = {
   default_policy = "deny"
   enable_token_persistence = true
   tokens {
-    default = "$CONSUL_MASTER_TOKEN"
+    initial_management = "$CONSUL_MASTER_TOKEN"
   }
 }
 ACL_EOF
@@ -129,10 +137,13 @@ cat << TLS_EOF
 tls {
   defaults {
     ca_file = "/etc/ssl/hashistack/ca.pem"
-    cert_file = "/etc/ssl/hashistack/consul-client.pem"
-    key_file = "/etc/ssl/hashistack/consul-client-key.pem"
-    verify_incoming = false
+    cert_file = "/etc/ssl/hashistack/consul-server.pem"
+    key_file = "/etc/ssl/hashistack/consul-server-key.pem"
+    verify_incoming = true
     verify_outgoing = true
+  }
+  internal_rpc {
+    verify_server_hostname = true
   }
 }
 TLS_EOF
@@ -161,23 +172,14 @@ data_dir = "/opt/nomad/data"
 log_level = "$NOMAD_LOG_LEVEL"
 name = "$INSTANCE_NAME"
 
-client {
+server {
   enabled = true
+  bootstrap_expect = $SERVER_COUNT
   
   server_join {
     retry_join = ["provider=gce project_name=$PROJECT_ID tag_value=nomad-server"]
     retry_max = 3
     retry_interval = "15s"
-  }
-  
-  options {
-    "driver.raw_exec.enable" = "1"
-    "driver.docker.enable" = "1"
-  }
-  
-  host_volume "docker_sock" {
-    path = "/var/run/docker.sock"
-    read_only = false
   }
 }
 
@@ -193,19 +195,30 @@ consul {
   
 $(if [ "$ENABLE_ACLS" = "true" ]; then
 cat << CONSUL_ACL_EOF
-  token = "$CONSUL_MASTER_TOKEN"
+  token = "$NOMAD_CONSUL_TOKEN"
 CONSUL_ACL_EOF
 fi)
 
 $(if [ "$ENABLE_TLS" = "true" ]; then
 cat << CONSUL_TLS_EOF
   ca_file = "/etc/ssl/hashistack/ca.pem"
-  cert_file = "/etc/ssl/hashistack/consul-client.pem"
-  key_file = "/etc/ssl/hashistack/consul-client-key.pem"
+  cert_file = "/etc/ssl/hashistack/consul-server.pem"
+  key_file = "/etc/ssl/hashistack/consul-server-key.pem"
   ssl = true
 CONSUL_TLS_EOF
 fi)
 }
+
+$(if [ "$ENABLE_ACLS" = "true" ]; then
+cat << NOMAD_ACL_EOF
+acl {
+  enabled = true
+  token_ttl = "30s"
+  policy_ttl = "60s"
+  role_ttl = "60s"
+}
+NOMAD_ACL_EOF
+fi)
 
 $(if [ "$ENABLE_TLS" = "true" ]; then
 cat << NOMAD_TLS_EOF
@@ -214,8 +227,8 @@ tls {
   rpc  = true
 
   ca_file   = "/etc/ssl/hashistack/ca.pem"
-  cert_file = "/etc/ssl/hashistack/nomad-client.pem"
-  key_file  = "/etc/ssl/hashistack/nomad-client-key.pem"
+  cert_file = "/etc/ssl/hashistack/nomad-server.pem"
+  key_file  = "/etc/ssl/hashistack/nomad-server-key.pem"
 
   verify_server_hostname = true
   verify_https_client    = true
@@ -237,12 +250,10 @@ logging {
   log_rotate_max_files = 7
 }
 
-plugin "docker" {
-  config {
-    volumes {
-      enabled = true
-    }
-    allow_privileged = true
+ui {
+  enabled = true
+  consul {
+    ui_url = "http://localhost:8500/ui"
   }
 }
 
@@ -301,27 +312,6 @@ LimitNOFILE=65536
 WantedBy=multi-user.target
 EOF
 
-# Create host volumes for applications
-mkdir -p /opt/nomad/host_volumes/{prometheus_data,grafana_data}
-chown -R nobody:nogroup /opt/nomad/host_volumes/
-
-# Add host volume configuration to Nomad client config
-cat >> /opt/nomad/config/nomad.hcl << EOF
-
-# Host volumes for persistent data
-client {
-  host_volume "prometheus_data" {
-    path      = "/opt/nomad/host_volumes/prometheus_data"
-    read_only = false
-  }
-  
-  host_volume "grafana_data" {
-    path      = "/opt/nomad/host_volumes/grafana_data"
-    read_only = false
-  }
-}
-EOF
-
 # Start services
 systemctl daemon-reload
 systemctl enable consul
@@ -333,4 +323,54 @@ sleep 30
 systemctl enable nomad
 systemctl start nomad
 
-echo "Client setup complete"
+# Wait for Nomad to be ready
+sleep 30
+
+# Configure ACLs if enabled
+if [ "$ENABLE_ACLS" = "true" ] && [ "$SERVER_INDEX" = "1" ]; then
+    # Wait for Consul cluster to be ready
+    sleep 60
+    
+    # Bootstrap Consul ACLs and create tokens
+    export CONSUL_HTTP_TOKEN="$CONSUL_MASTER_TOKEN"
+    
+    # Create Nomad policy for Consul
+    consul acl policy create \
+        -name "nomad-server" \
+        -description "Policy for Nomad servers" \
+        -rules '@/opt/consul/nomad-server-policy.hcl'
+    
+    # Create Nomad token
+    consul acl token create \
+        -description "Token for Nomad servers" \
+        -policy-name "nomad-server" \
+        -secret "$NOMAD_CONSUL_TOKEN"
+    
+    # Bootstrap Nomad ACLs
+    export NOMAD_TOKEN="$NOMAD_SERVER_TOKEN"
+    nomad acl bootstrap -initial-management-token="$NOMAD_SERVER_TOKEN"
+fi
+
+# Create Consul policy for Nomad
+cat > /opt/consul/nomad-server-policy.hcl << EOF
+node_prefix "" {
+  policy = "write"
+}
+
+service_prefix "" {
+  policy = "write"
+}
+
+agent_prefix "" {
+  policy = "write"
+}
+
+key_prefix "" {
+  policy = "write"
+}
+
+acl = "write"
+EOF
+
+echo "Server setup complete".pem /etc/ssl/hashistack/consul-server.pem
+    mv $CONSUL_DATACENTER-server-consul-0
