@@ -36,7 +36,6 @@ resource "google_compute_instance" "nomad_servers" {
       # Set variables directly (no template substitution needed)
       CONSUL_DC="${var.consul_datacenter}"
       NOMAD_DC="${var.nomad_datacenter}"
-      CONSUL_KEY="${base64encode(random_id.consul_encrypt.hex)}"
       CONSUL_TOKEN="${random_uuid.consul_master_token.result}"
       NOMAD_CONSUL_TOKEN="${random_uuid.nomad_consul_token.result}"
       NOMAD_SERVER_TOKEN="${random_uuid.nomad_server_token.result}"
@@ -71,25 +70,29 @@ resource "google_compute_instance" "nomad_servers" {
       
       # Download Consul
       echo "Downloading Consul..."
-      wget -q "https://releases.hashicorp.com/consul/1.17.0+ent/consul_1.17.0+ent_linux_amd64.zip"
-      unzip -o consul_1.17.0+ent_linux_amd64.zip
+      wget -q "https://releases.hashicorp.com/consul/${var.consul_version}/consul_${var.consul_version}_linux_amd64.zip"
+      unzip -o consul_${var.consul_version}_linux_amd64.zip
       mv consul /opt/consul/bin/
       chmod +x /opt/consul/bin/consul
       ln -s /opt/consul/bin/consul /usr/local/bin/consul
-      rm -f consul_1.17.0+ent_linux_amd64.zip EULA.txt TermsOfEvaluation.txt
+      rm -f consul_${var.consul_version}_linux_amd64.zip EULA.txt TermsOfEvaluation.txt
       
       # Download Nomad
       echo "Downloading Nomad..."
-      wget -q "https://releases.hashicorp.com/nomad/1.7.2+ent/nomad_1.7.2+ent_linux_amd64.zip"
-      unzip -o nomad_1.7.2+ent_linux_amd64.zip
+      wget -q "https://releases.hashicorp.com/nomad/${var.nomad_version}/nomad_${var.nomad_version}_linux_amd64.zip"
+      unzip -o nomad_${var.nomad_version}_linux_amd64.zip
       mv nomad /opt/nomad/bin/
       chmod +x /opt/nomad/bin/nomad
       ln -s /opt/nomad/bin/nomad /usr/local/bin/nomad
-      rm -f nomad_1.7.2+ent_linux_amd64.zip EULA.txt TermsOfEvaluation.txt
+      rm -f nomad_${var.nomad_version}_linux_amd64.zip EULA.txt TermsOfEvaluation.txt
       
       # Verify installations
       echo "Consul version: $(/opt/consul/bin/consul version)"
       echo "Nomad version: $(/opt/nomad/bin/nomad version)"
+      
+      # Generate proper Consul encryption key AFTER consul is installed
+      echo "Generating Consul encryption key..."
+      CONSUL_KEY=$(/opt/consul/bin/consul keygen)
       
       # Create users
       useradd --system --home /etc/consul.d --shell /bin/false consul || true
@@ -99,7 +102,16 @@ resource "google_compute_instance" "nomad_servers" {
       chown -R consul:consul /opt/consul
       chown -R nomad:nomad /opt/nomad
       
-      # Create Consul config - use cat with variables, not heredoc
+      # Create license files
+      echo "$CONSUL_LIC" > /opt/consul/consul.lic
+      chown consul:consul /opt/consul/consul.lic
+      chmod 600 /opt/consul/consul.lic
+      
+      echo "$NOMAD_LIC" > /opt/nomad/nomad.lic
+      chown nomad:nomad /opt/nomad/nomad.lic
+      chmod 600 /opt/nomad/nomad.lic
+      
+      # Create Consul config - FIXED license syntax
       cat > /opt/consul/config/consul.hcl << CONSUL_CONFIG
 datacenter = "$CONSUL_DC"
 data_dir = "/opt/consul/data"
@@ -119,9 +131,7 @@ connect {
   enabled = true
 }
 
-enterprise {
-  license = "$CONSUL_LIC"
-}
+license_path = "/opt/consul/consul.lic"
 
 encrypt = "$CONSUL_KEY"
 
@@ -144,12 +154,14 @@ ports {
 }
 CONSUL_CONFIG
       
-      # Create Nomad config
+      # Create Nomad config - ADDED license
       cat > /opt/nomad/config/nomad.hcl << NOMAD_CONFIG
 datacenter = "$NOMAD_DC"
 data_dir = "/opt/nomad/data"
 log_level = "INFO"
 name = "$INSTANCE_NAME"
+
+license_path = "/opt/nomad/nomad.lic"
 
 server {
   enabled = true
