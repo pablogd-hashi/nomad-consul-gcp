@@ -23,7 +23,7 @@ resource "google_compute_instance" "nomad_servers" {
   }
 
   service_account {
-    email  = data.google_service_account.existing_sa.email
+    email  = var.gcp_sa
     scopes = ["cloud-platform"]
   }
 
@@ -73,19 +73,27 @@ resource "google_compute_instance" "nomad_servers" {
       # Download and install software
       cd /tmp
       
-      # Download Consul (hardcoded version for now)
-      wget "https://releases.hashicorp.com/consul/1.17.0+ent/consul_1.17.0+ent_linux_amd64.zip"
-      unzip "consul_1.17.0+ent_linux_amd64.zip"
+      # Download Consul
+      echo "Downloading Consul..."
+      wget -q "https://releases.hashicorp.com/consul/1.17.0+ent/consul_1.17.0+ent_linux_amd64.zip"
+      unzip -o consul_1.17.0+ent_linux_amd64.zip
       mv consul /opt/consul/bin/
       chmod +x /opt/consul/bin/consul
       ln -s /opt/consul/bin/consul /usr/local/bin/consul
+      rm -f consul_1.17.0+ent_linux_amd64.zip EULA.txt TermsOfEvaluation.txt
       
-      # Download Nomad (hardcoded version for now)
-      wget "https://releases.hashicorp.com/nomad/1.7.2+ent/nomad_1.7.2+ent_linux_amd64.zip"
-      unzip "nomad_1.7.2+ent_linux_amd64.zip"
+      # Download Nomad
+      echo "Downloading Nomad..."
+      wget -q "https://releases.hashicorp.com/nomad/1.7.2+ent/nomad_1.7.2+ent_linux_amd64.zip"
+      unzip -o nomad_1.7.2+ent_linux_amd64.zip
       mv nomad /opt/nomad/bin/
       chmod +x /opt/nomad/bin/nomad
       ln -s /opt/nomad/bin/nomad /usr/local/bin/nomad
+      rm -f nomad_1.7.2+ent_linux_amd64.zip EULA.txt TermsOfEvaluation.txt
+      
+      # Verify installations
+      echo "Consul version: $(/opt/consul/bin/consul version)"
+      echo "Nomad version: $(/opt/nomad/bin/nomad version)"
       
       # Setup certificates
       echo "$${CA_CERT_B64}" | base64 -d > /etc/ssl/hashistack/ca.pem
@@ -93,8 +101,8 @@ resource "google_compute_instance" "nomad_servers" {
       chmod 600 /etc/ssl/hashistack/ca-key.pem
       
       # Create users
-      useradd --system --home /etc/consul.d --shell /bin/false consul
-      useradd --system --home /etc/nomad.d --shell /bin/false nomad
+      useradd --system --home /etc/consul.d --shell /bin/false consul || true
+      useradd --system --home /etc/nomad.d --shell /bin/false nomad || true
       
       # Set ownership
       chown -R consul:consul /opt/consul
@@ -238,20 +246,31 @@ NOMAD_SVC
       # Start services
       systemctl daemon-reload
       systemctl enable consul nomad
+      
+      echo "Starting Consul..."
       systemctl start consul
       
+      # Wait for Consul to start
       sleep 30
+      
+      echo "Starting Nomad..."
       systemctl start nomad
+      
+      # Wait for Nomad to start
+      sleep 30
       
       # Bootstrap ACLs on first server
       if [ "$${SERVER_IDX}" = "1" ]; then
+        echo "Bootstrapping ACLs on server 1..."
         sleep 60
         export CONSUL_HTTP_TOKEN="$${CONSUL_TOKEN}"
         export NOMAD_TOKEN="$${NOMAD_SERVER_TOKEN}"
-        nomad acl bootstrap -initial-management-token="$${NOMAD_SERVER_TOKEN}" || true
+        nomad acl bootstrap -initial-management-token="$${NOMAD_SERVER_TOKEN}" || echo "ACL bootstrap failed or already done"
       fi
       
       echo "Server setup complete: $${INSTANCE_NAME}"
+      echo "Consul status: $(systemctl is-active consul)"
+      echo "Nomad status: $(systemctl is-active nomad)"
     EOF
   }
 
