@@ -46,18 +46,13 @@ resource "google_compute_instance" "nomad_clients" {
       CLIENT_IDX="${count.index + 1}"
       CA_CERT_B64="${base64encode(tls_self_signed_cert.ca.cert_pem)}"
       SERVER_IPS="${join(",", [for instance in data.google_compute_instance.nomad_servers : instance.network_interface[0].network_ip])}"
-      SUBNET="${var.subnet_cidr}"
-      ACLS="${var.enable_acls}"
-      TLS="${var.enable_tls}"
-      CONSUL_LOG="${var.consul_log_level}"
-      NOMAD_LOG="${var.nomad_log_level}"
       PROJECT="${var.project_id}"
       
       # Get instance metadata
       INSTANCE_NAME=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/name" -H "Metadata-Flavor: Google")
       PRIVATE_IP=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip" -H "Metadata-Flavor: Google")
       
-      echo "Starting client setup: $INSTANCE_NAME"
+      echo "Starting client setup: $${INSTANCE_NAME}"
       
       # Update system
       apt-get update
@@ -74,23 +69,25 @@ resource "google_compute_instance" "nomad_clients" {
       mkdir -p /opt/nomad/host_volumes/{prometheus_data,grafana_data}
       mkdir -p /etc/ssl/hashistack
       
-      # Download Consul
+      # Download and install software
       cd /tmp
-      wget "https://releases.hashicorp.com/consul/$CONSUL_VER/consul_${CONSUL_VER}_linux_amd64.zip"
-      unzip "consul_${CONSUL_VER}_linux_amd64.zip"
+      
+      # Download Consul (hardcoded version for now)
+      wget "https://releases.hashicorp.com/consul/1.17.0+ent/consul_1.17.0+ent_linux_amd64.zip"
+      unzip "consul_1.17.0+ent_linux_amd64.zip"
       mv consul /opt/consul/bin/
       chmod +x /opt/consul/bin/consul
       ln -s /opt/consul/bin/consul /usr/local/bin/consul
       
-      # Download Nomad
-      wget "https://releases.hashicorp.com/nomad/$NOMAD_VER/nomad_${NOMAD_VER}_linux_amd64.zip"
-      unzip "nomad_${NOMAD_VER}_linux_amd64.zip"
+      # Download Nomad (hardcoded version for now)
+      wget "https://releases.hashicorp.com/nomad/1.7.2+ent/nomad_1.7.2+ent_linux_amd64.zip"
+      unzip "nomad_1.7.2+ent_linux_amd64.zip"
       mv nomad /opt/nomad/bin/
       chmod +x /opt/nomad/bin/nomad
       ln -s /opt/nomad/bin/nomad /usr/local/bin/nomad
       
       # Setup certificates
-      echo "$CA_CERT_B64" | base64 -d > /etc/ssl/hashistack/ca.pem
+      echo "$${CA_CERT_B64}" | base64 -d > /etc/ssl/hashistack/ca.pem
       chmod 644 /etc/ssl/hashistack/ca.pem
       
       # Create users
@@ -104,30 +101,30 @@ resource "google_compute_instance" "nomad_clients" {
       
       # Create Consul config
       cat > /opt/consul/config/consul.hcl << 'CONSUL_EOF'
-datacenter = "${CONSUL_DC}"
+datacenter = "$${CONSUL_DC}"
 data_dir = "/opt/consul/data"
-log_level = "${CONSUL_LOG}"
-node_name = "${INSTANCE_NAME}"
-bind_addr = "${PRIVATE_IP}"
+log_level = "INFO"
+node_name = "$${INSTANCE_NAME}"
+bind_addr = "$${PRIVATE_IP}"
 client_addr = "0.0.0.0"
-retry_join = ["provider=gce project_name=${PROJECT} tag_value=consul-server"]
+retry_join = ["provider=gce project_name=$${PROJECT} tag_value=consul-server"]
 
 connect {
   enabled = true
 }
 
 enterprise {
-  license = "${CONSUL_LIC}"
+  license = "$${CONSUL_LIC}"
 }
 
-encrypt = "${CONSUL_KEY}"
+encrypt = "$${CONSUL_KEY}"
 
 acl = {
   enabled = true
   default_policy = "deny"
   enable_token_persistence = true
   tokens {
-    default = "${CONSUL_TOKEN}"
+    default = "$${CONSUL_TOKEN}"
   }
 }
 
@@ -143,16 +140,16 @@ CONSUL_EOF
       
       # Create Nomad config
       cat > /opt/nomad/config/nomad.hcl << 'NOMAD_EOF'
-datacenter = "${NOMAD_DC}"
+datacenter = "$${NOMAD_DC}"
 data_dir = "/opt/nomad/data"
-log_level = "${NOMAD_LOG}"
-name = "${INSTANCE_NAME}"
+log_level = "INFO"
+name = "$${INSTANCE_NAME}"
 
 client {
   enabled = true
   
   server_join {
-    retry_join = ["provider=gce project_name=${PROJECT} tag_value=nomad-server"]
+    retry_join = ["provider=gce project_name=$${PROJECT} tag_value=nomad-server"]
     retry_max = 3
     retry_interval = "15s"
   }
@@ -178,7 +175,7 @@ client {
   }
 }
 
-bind_addr = "${PRIVATE_IP}"
+bind_addr = "$${PRIVATE_IP}"
 
 consul {
   address = "127.0.0.1:8500"
@@ -187,7 +184,7 @@ consul {
   auto_advertise = true
   server_auto_join = true
   client_auto_join = true
-  token = "${CONSUL_TOKEN}"
+  token = "$${CONSUL_TOKEN}"
 }
 
 telemetry {
@@ -251,7 +248,7 @@ NOMAD_SVC
       sleep 30
       systemctl start nomad
       
-      echo "Client setup complete: ${INSTANCE_NAME}"
+      echo "Client setup complete: $${INSTANCE_NAME}"
     EOF
   }
 
