@@ -1,16 +1,11 @@
-terraform { 
-  cloud { 
-    
-    organization = "pablogd-hcp-test" 
-
-    workspaces { 
-      name = "hashistack-terramino-nomad-consul" 
-    } 
-  } 
-}
-
-
 terraform {
+  cloud {
+    organization = "pablogd-hcp-test"
+    workspaces {
+      name = "hashistack-terramino-nomad-consul"
+    }
+  }
+  
   required_version = ">= 1.0"
   required_providers {
     google = {
@@ -157,6 +152,11 @@ resource "google_compute_firewall" "allow_traefik" {
   target_tags   = ["hashistack"]
 }
 
+# Use existing service account instead of creating new one
+data "google_service_account" "existing_sa" {
+  account_id = split("@", var.gcp_sa)[0]
+}
+
 # Generate CA certificate for internal communication
 resource "tls_private_key" "ca" {
   algorithm = "RSA"
@@ -192,23 +192,3 @@ resource "random_uuid" "consul_master_token" {}
 resource "random_uuid" "nomad_consul_token" {}
 resource "random_uuid" "nomad_server_token" {}
 resource "random_uuid" "nomad_client_token" {}
-
-# Create service account for workload identity
-resource "google_service_account" "hashistack_sa" {
-  account_id   = "hashistack-sa"
-  display_name = "HashiStack Service Account"
-  description  = "Service account for HashiStack workload identity"
-}
-
-resource "google_project_iam_member" "hashistack_sa_roles" {
-  for_each = toset([
-    "roles/compute.instanceAdmin.v1",
-    "roles/iam.serviceAccountUser",
-    "roles/logging.logWriter",
-    "roles/monitoring.metricWriter"
-  ])
-  
-  project = var.project_id
-  role    = each.value
-  member  = "serviceAccount:${google_service_account.hashistack_sa.email}"
-}

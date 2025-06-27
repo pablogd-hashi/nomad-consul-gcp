@@ -81,6 +81,17 @@ variable "dns_zone" {
   default     = ""
 }
 
+variable "cluster_name" {
+  description = "Name for the cluster"
+  type        = string
+  default     = "hashistack-terramino"
+}
+
+variable "gcp_sa" {
+  description = "GCP Service Account email"
+  type        = string
+}
+
 variable "enable_acls" {
   description = "Enable ACLs for Consul and Nomad"
   type        = bool

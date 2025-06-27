@@ -9,7 +9,7 @@ resource "google_compute_instance" "nomad_clients" {
 
   boot_disk {
     initialize_params {
-      image = "ubuntu-os-cloud/ubuntu-2004-lts"
+      image = "ubuntu-os-cloud/ubuntu-2204-lts"
       size  = 100
       type  = "pd-standard"
     }
@@ -23,7 +23,7 @@ resource "google_compute_instance" "nomad_clients" {
   }
 
   service_account {
-    email  = google_service_account.hashistack_sa.email
+    email  = data.google_service_account.existing_sa.email
     scopes = ["cloud-platform"]
   }
 

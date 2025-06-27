@@ -1,42 +1,42 @@
-# DNS Zone (optional - if managing DNS through GCP)
-data "google_dns_managed_zone" "main" {
+# DNS Zone (using your working pattern)
+data "google_dns_managed_zone" "doormat_dns_zone" {
   count = var.dns_zone != "" ? 1 : 0
   name  = var.dns_zone
 }
 
-# DNS records for applications (optional)
+# DNS records for applications
 resource "google_dns_record_set" "terramino" {
   count = var.dns_zone != "" ? 1 : 0
   
-  name         = "terramino.${var.domain_name}."
-  managed_zone = data.google_dns_managed_zone.main[0].name
+  name         = "terramino-${var.cluster_name}.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
+  managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
   type         = "A"
   ttl          = 300
-  rrdatas      = [google_compute_global_address.lb_ip.address]
+  rrdatas      = [google_compute_global_address.hashistack_lb_ip.address]
 }
 
 resource "google_dns_record_set" "grafana" {
   count = var.dns_zone != "" ? 1 : 0
   
-  name         = "grafana.${var.domain_name}."
-  managed_zone = data.google_dns_managed_zone.main[0].name
+  name         = "grafana-${var.cluster_name}.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
+  managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
   type         = "A"
   ttl          = 300
-  rrdatas      = [google_compute_global_address.lb_ip.address]
+  rrdatas      = [google_compute_global_address.hashistack_lb_ip.address]
 }
 
 resource "google_dns_record_set" "prometheus" {
   count = var.dns_zone != "" ? 1 : 0
   
-  name         = "prometheus.${var.domain_name}."
-  managed_zone = data.google_dns_managed_zone.main[0].name
+  name         = "prometheus-${var.cluster_name}.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
+  managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
   type         = "A"
   ttl          = 300
-  rrdatas      = [google_compute_global_address.lb_ip.address]
+  rrdatas      = [google_compute_global_address.hashistack_lb_ip.address]
 }
 
 # Static IP for load balancer
-resource "google_compute_global_address" "lb_ip" {
+resource "google_compute_global_address" "hashistack_lb_ip" {
   name = "hashistack-lb-ip"
 }
 
@@ -132,17 +132,17 @@ resource "google_compute_url_map" "hashistack_lb" {
   default_service = google_compute_backend_service.terramino.id
 
   host_rule {
-    hosts        = ["terramino.${var.domain_name}"]
+    hosts        = ["terramino-${var.cluster_name}.${var.domain_name}"]
     path_matcher = "terramino"
   }
 
   host_rule {
-    hosts        = ["grafana.${var.domain_name}"]
+    hosts        = ["grafana-${var.cluster_name}.${var.domain_name}"]
     path_matcher = "grafana"
   }
 
   host_rule {
-    hosts        = ["prometheus.${var.domain_name}"]
+    hosts        = ["prometheus-${var.cluster_name}.${var.domain_name}"]
     path_matcher = "prometheus"
   }
 
@@ -173,7 +173,7 @@ resource "google_compute_global_forwarding_rule" "hashistack_lb" {
   name       = "hashistack-lb-forwarding-rule"
   target     = google_compute_target_http_proxy.hashistack_lb.id
   port_range = "80"
-  ip_address = google_compute_global_address.lb_ip.address
+  ip_address = google_compute_global_address.hashistack_lb_ip.address
 }
 
 # SSL certificate (optional - uncomment if you have a domain)
@@ -182,9 +182,9 @@ resource "google_compute_global_forwarding_rule" "hashistack_lb" {
 #
 #   managed {
 #     domains = [
-#       "terramino.${var.domain_name}",
-#       "grafana.${var.domain_name}",
-#       "prometheus.${var.domain_name}"
+#       "terramino-${var.cluster_name}.${var.domain_name}",
+#       "grafana-${var.cluster_name}.${var.domain_name}",
+#       "prometheus-${var.cluster_name}.${var.domain_name}"
 #     ]
 #   }
 # }
@@ -201,5 +201,5 @@ resource "google_compute_global_forwarding_rule" "hashistack_lb" {
 #   name       = "hashistack-lb-https-forwarding-rule"
 #   target     = google_compute_target_https_proxy.hashistack_lb_https.id
 #   port_range = "443"
-#   ip_address = google_compute_global_address.lb_ip.address
+#   ip_address = google_compute_global_address.hashistack_lb_ip.address
 # }
