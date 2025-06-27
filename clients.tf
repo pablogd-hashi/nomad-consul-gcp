@@ -29,28 +29,230 @@ resource "google_compute_instance" "nomad_clients" {
 
   metadata = {
     ssh-keys = "ubuntu:${var.ssh_public_key}"
-    startup-script = templatefile("${path.module}/scripts/client-startup.sh", {
-      consul_version      = var.consul_version
-      nomad_version       = var.nomad_version
-      consul_datacenter   = var.consul_datacenter
-      nomad_datacenter    = var.nomad_datacenter
-      consul_encrypt_key  = base64encode(random_id.consul_encrypt.hex)
-      consul_master_token = random_uuid.consul_master_token.result
-      nomad_client_token  = random_uuid.nomad_client_token.result
-      consul_license      = var.consul_license
-      nomad_license       = var.nomad_license
-      client_index        = count.index + 1
-      ca_cert             = base64encode(tls_self_signed_cert.ca.cert_pem)
-      server_ips = join(",", [
-        for instance in data.google_compute_instance.nomad_servers : instance.network_interface[0].network_ip
-      ])
-      subnet_cidr      = var.subnet_cidr
-      enable_acls      = var.enable_acls
-      enable_tls       = var.enable_tls
-      consul_log_level = var.consul_log_level
-      nomad_log_level  = var.nomad_log_level
-      project_id       = var.project_id
-    })
+    startup-script = <<-EOF
+      #!/bin/bash
+      set -e
+      
+      # Variables from Terraform
+      CONSUL_VER="${var.consul_version}"
+      NOMAD_VER="${var.nomad_version}"
+      CONSUL_DC="${var.consul_datacenter}"
+      NOMAD_DC="${var.nomad_datacenter}"
+      CONSUL_KEY="${base64encode(random_id.consul_encrypt.hex)}"
+      CONSUL_TOKEN="${random_uuid.consul_master_token.result}"
+      NOMAD_CLIENT_TOKEN="${random_uuid.nomad_client_token.result}"
+      CONSUL_LIC="${var.consul_license}"
+      NOMAD_LIC="${var.nomad_license}"
+      CLIENT_IDX="${count.index + 1}"
+      CA_CERT_B64="${base64encode(tls_self_signed_cert.ca.cert_pem)}"
+      SERVER_IPS="${join(",", [for instance in data.google_compute_instance.nomad_servers : instance.network_interface[0].network_ip])}"
+      SUBNET="${var.subnet_cidr}"
+      ACLS="${var.enable_acls}"
+      TLS="${var.enable_tls}"
+      CONSUL_LOG="${var.consul_log_level}"
+      NOMAD_LOG="${var.nomad_log_level}"
+      PROJECT="${var.project_id}"
+      
+      # Get instance metadata
+      INSTANCE_NAME=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/name" -H "Metadata-Flavor: Google")
+      PRIVATE_IP=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip" -H "Metadata-Flavor: Google")
+      
+      echo "Starting client setup: $INSTANCE_NAME"
+      
+      # Update system
+      apt-get update
+      apt-get install -y unzip curl jq docker.io nginx
+      
+      # Start Docker
+      systemctl start docker
+      systemctl enable docker
+      usermod -aG docker ubuntu
+      
+      # Create directories
+      mkdir -p /opt/consul/{bin,data,config,logs}
+      mkdir -p /opt/nomad/{bin,data,config,logs}
+      mkdir -p /opt/nomad/host_volumes/{prometheus_data,grafana_data}
+      mkdir -p /etc/ssl/hashistack
+      
+      # Download Consul
+      cd /tmp
+      wget "https://releases.hashicorp.com/consul/$CONSUL_VER/consul_${CONSUL_VER}_linux_amd64.zip"
+      unzip "consul_${CONSUL_VER}_linux_amd64.zip"
+      mv consul /opt/consul/bin/
+      chmod +x /opt/consul/bin/consul
+      ln -s /opt/consul/bin/consul /usr/local/bin/consul
+      
+      # Download Nomad
+      wget "https://releases.hashicorp.com/nomad/$NOMAD_VER/nomad_${NOMAD_VER}_linux_amd64.zip"
+      unzip "nomad_${NOMAD_VER}_linux_amd64.zip"
+      mv nomad /opt/nomad/bin/
+      chmod +x /opt/nomad/bin/nomad
+      ln -s /opt/nomad/bin/nomad /usr/local/bin/nomad
+      
+      # Setup certificates
+      echo "$CA_CERT_B64" | base64 -d > /etc/ssl/hashistack/ca.pem
+      chmod 644 /etc/ssl/hashistack/ca.pem
+      
+      # Create users
+      useradd --system --home /etc/consul.d --shell /bin/false consul
+      useradd --system --home /etc/nomad.d --shell /bin/false nomad
+      
+      # Set ownership
+      chown -R consul:consul /opt/consul
+      chown -R nomad:nomad /opt/nomad
+      chown -R nobody:nogroup /opt/nomad/host_volumes/
+      
+      # Create Consul config
+      cat > /opt/consul/config/consul.hcl << 'CONSUL_EOF'
+datacenter = "$CONSUL_DC"
+data_dir = "/opt/consul/data"
+log_level = "$CONSUL_LOG"
+node_name = "$INSTANCE_NAME"
+bind_addr = "$PRIVATE_IP"
+client_addr = "0.0.0.0"
+retry_join = ["provider=gce project_name=$PROJECT tag_value=consul-server"]
+
+connect {
+  enabled = true
+}
+
+enterprise {
+  license = "$CONSUL_LIC"
+}
+
+encrypt = "$CONSUL_KEY"
+
+acl = {
+  enabled = true
+  default_policy = "deny"
+  enable_token_persistence = true
+  tokens {
+    default = "$CONSUL_TOKEN"
+  }
+}
+
+telemetry {
+  prometheus_retention_time = "24h"
+  disable_hostname = true
+}
+
+ports {
+  grpc = 8502
+}
+CONSUL_EOF
+      
+      # Create Nomad config
+      cat > /opt/nomad/config/nomad.hcl << 'NOMAD_EOF'
+datacenter = "$NOMAD_DC"
+data_dir = "/opt/nomad/data"
+log_level = "$NOMAD_LOG"
+name = "$INSTANCE_NAME"
+
+client {
+  enabled = true
+  
+  server_join {
+    retry_join = ["provider=gce project_name=$PROJECT tag_value=nomad-server"]
+    retry_max = 3
+    retry_interval = "15s"
+  }
+  
+  options {
+    "driver.raw_exec.enable" = "1"
+    "driver.docker.enable" = "1"
+  }
+  
+  host_volume "prometheus_data" {
+    path      = "/opt/nomad/host_volumes/prometheus_data"
+    read_only = false
+  }
+  
+  host_volume "grafana_data" {
+    path      = "/opt/nomad/host_volumes/grafana_data"
+    read_only = false
+  }
+  
+  host_volume "docker_sock" {
+    path = "/var/run/docker.sock"
+    read_only = false
+  }
+}
+
+bind_addr = "$PRIVATE_IP"
+
+consul {
+  address = "127.0.0.1:8500"
+  server_service_name = "nomad"
+  client_service_name = "nomad-client"
+  auto_advertise = true
+  server_auto_join = true
+  client_auto_join = true
+  token = "$CONSUL_TOKEN"
+}
+
+telemetry {
+  collection_interval = "1s"
+  disable_hostname = true
+  prometheus_metrics = true
+  publish_allocation_metrics = true
+  publish_node_metrics = true
+}
+
+plugin "docker" {
+  config {
+    volumes {
+      enabled = true
+    }
+    allow_privileged = true
+  }
+}
+NOMAD_EOF
+      
+      # Create systemd services
+      cat > /etc/systemd/system/consul.service << 'CONSUL_SVC'
+[Unit]
+Description=Consul
+Requires=network-online.target
+After=network-online.target
+
+[Service]
+Type=notify
+User=consul
+Group=consul
+ExecStart=/opt/consul/bin/consul agent -config-dir=/opt/consul/config/
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+CONSUL_SVC
+      
+      cat > /etc/systemd/system/nomad.service << 'NOMAD_SVC'
+[Unit]
+Description=Nomad
+Requires=network-online.target
+After=network-online.target consul.service
+
+[Service]
+Type=exec
+User=nomad
+Group=nomad
+ExecStart=/opt/nomad/bin/nomad agent -config=/opt/nomad/config/nomad.hcl
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+NOMAD_SVC
+      
+      # Start services
+      systemctl daemon-reload
+      systemctl enable consul nomad
+      systemctl start consul
+      
+      sleep 30
+      systemctl start nomad
+      
+      echo "Client setup complete: $INSTANCE_NAME"
+    EOF
   }
 
   depends_on = [
