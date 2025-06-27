@@ -104,30 +104,30 @@ resource "google_compute_instance" "nomad_clients" {
       
       # Create Consul config
       cat > /opt/consul/config/consul.hcl << 'CONSUL_EOF'
-datacenter = "$CONSUL_DC"
+datacenter = "${CONSUL_DC}"
 data_dir = "/opt/consul/data"
-log_level = "$CONSUL_LOG"
-node_name = "$INSTANCE_NAME"
-bind_addr = "$PRIVATE_IP"
+log_level = "${CONSUL_LOG}"
+node_name = "${INSTANCE_NAME}"
+bind_addr = "${PRIVATE_IP}"
 client_addr = "0.0.0.0"
-retry_join = ["provider=gce project_name=$PROJECT tag_value=consul-server"]
+retry_join = ["provider=gce project_name=${PROJECT} tag_value=consul-server"]
 
 connect {
   enabled = true
 }
 
 enterprise {
-  license = "$CONSUL_LIC"
+  license = "${CONSUL_LIC}"
 }
 
-encrypt = "$CONSUL_KEY"
+encrypt = "${CONSUL_KEY}"
 
 acl = {
   enabled = true
   default_policy = "deny"
   enable_token_persistence = true
   tokens {
-    default = "$CONSUL_TOKEN"
+    default = "${CONSUL_TOKEN}"
   }
 }
 
@@ -143,16 +143,16 @@ CONSUL_EOF
       
       # Create Nomad config
       cat > /opt/nomad/config/nomad.hcl << 'NOMAD_EOF'
-datacenter = "$NOMAD_DC"
+datacenter = "${NOMAD_DC}"
 data_dir = "/opt/nomad/data"
-log_level = "$NOMAD_LOG"
-name = "$INSTANCE_NAME"
+log_level = "${NOMAD_LOG}"
+name = "${INSTANCE_NAME}"
 
 client {
   enabled = true
   
   server_join {
-    retry_join = ["provider=gce project_name=$PROJECT tag_value=nomad-server"]
+    retry_join = ["provider=gce project_name=${PROJECT} tag_value=nomad-server"]
     retry_max = 3
     retry_interval = "15s"
   }
@@ -178,7 +178,7 @@ client {
   }
 }
 
-bind_addr = "$PRIVATE_IP"
+bind_addr = "${PRIVATE_IP}"
 
 consul {
   address = "127.0.0.1:8500"
@@ -187,7 +187,7 @@ consul {
   auto_advertise = true
   server_auto_join = true
   client_auto_join = true
-  token = "$CONSUL_TOKEN"
+  token = "${CONSUL_TOKEN}"
 }
 
 telemetry {
@@ -251,7 +251,7 @@ NOMAD_SVC
       sleep 30
       systemctl start nomad
       
-      echo "Client setup complete: $INSTANCE_NAME"
+      echo "Client setup complete: ${INSTANCE_NAME}"
     EOF
   }
 
