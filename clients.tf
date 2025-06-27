@@ -33,9 +33,7 @@ resource "google_compute_instance" "nomad_clients" {
       #!/bin/bash
       set -e
       
-      # Variables from Terraform
-      CONSUL_VER="${var.consul_version}"
-      NOMAD_VER="${var.nomad_version}"
+      # Set variables directly (no template substitution needed)
       CONSUL_DC="${var.consul_datacenter}"
       NOMAD_DC="${var.nomad_datacenter}"
       CONSUL_KEY="${base64encode(random_id.consul_encrypt.hex)}"
@@ -44,14 +42,13 @@ resource "google_compute_instance" "nomad_clients" {
       CONSUL_LIC="${var.consul_license}"
       NOMAD_LIC="${var.nomad_license}"
       CLIENT_IDX="${count.index + 1}"
-      CA_CERT_B64="${base64encode(tls_self_signed_cert.ca.cert_pem)}"
       PROJECT="${var.project_id}"
       
       # Get instance metadata
       INSTANCE_NAME=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/name" -H "Metadata-Flavor: Google")
       PRIVATE_IP=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip" -H "Metadata-Flavor: Google")
       
-      echo "Starting client setup: $${INSTANCE_NAME}"
+      echo "Starting client setup: $INSTANCE_NAME"
       
       # Update system
       apt-get update
@@ -93,10 +90,6 @@ resource "google_compute_instance" "nomad_clients" {
       echo "Consul version: $(/opt/consul/bin/consul version)"
       echo "Nomad version: $(/opt/nomad/bin/nomad version)"
       
-      # Setup certificates
-      echo "$${CA_CERT_B64}" | base64 -d > /etc/ssl/hashistack/ca.pem
-      chmod 644 /etc/ssl/hashistack/ca.pem
-      
       # Create users
       useradd --system --home /etc/consul.d --shell /bin/false consul || true
       useradd --system --home /etc/nomad.d --shell /bin/false nomad || true
@@ -106,32 +99,32 @@ resource "google_compute_instance" "nomad_clients" {
       chown -R nomad:nomad /opt/nomad
       chown -R nobody:nogroup /opt/nomad/host_volumes/
       
-      # Create Consul config
-      cat > /opt/consul/config/consul.hcl << 'CONSUL_EOF'
-datacenter = "$${CONSUL_DC}"
+      # Create Consul config - use cat with variables, not heredoc
+      cat > /opt/consul/config/consul.hcl << CONSUL_CONFIG
+datacenter = "$CONSUL_DC"
 data_dir = "/opt/consul/data"
 log_level = "INFO"
-node_name = "$${INSTANCE_NAME}"
-bind_addr = "$${PRIVATE_IP}"
+node_name = "$INSTANCE_NAME"
+bind_addr = "$PRIVATE_IP"
 client_addr = "0.0.0.0"
-retry_join = ["provider=gce project_name=$${PROJECT} tag_value=consul-server"]
+retry_join = ["provider=gce project_name=$PROJECT tag_value=consul-server"]
 
 connect {
   enabled = true
 }
 
 enterprise {
-  license = "$${CONSUL_LIC}"
+  license = "$CONSUL_LIC"
 }
 
-encrypt = "$${CONSUL_KEY}"
+encrypt = "$CONSUL_KEY"
 
 acl = {
   enabled = true
   default_policy = "deny"
   enable_token_persistence = true
   tokens {
-    default = "$${CONSUL_TOKEN}"
+    default = "$CONSUL_TOKEN"
   }
 }
 
@@ -143,20 +136,20 @@ telemetry {
 ports {
   grpc = 8502
 }
-CONSUL_EOF
+CONSUL_CONFIG
       
       # Create Nomad config
-      cat > /opt/nomad/config/nomad.hcl << 'NOMAD_EOF'
-datacenter = "$${NOMAD_DC}"
+      cat > /opt/nomad/config/nomad.hcl << NOMAD_CONFIG
+datacenter = "$NOMAD_DC"
 data_dir = "/opt/nomad/data"
 log_level = "INFO"
-name = "$${INSTANCE_NAME}"
+name = "$INSTANCE_NAME"
 
 client {
   enabled = true
   
   server_join {
-    retry_join = ["provider=gce project_name=$${PROJECT} tag_value=nomad-server"]
+    retry_join = ["provider=gce project_name=$PROJECT tag_value=nomad-server"]
     retry_max = 3
     retry_interval = "15s"
   }
@@ -182,7 +175,7 @@ client {
   }
 }
 
-bind_addr = "$${PRIVATE_IP}"
+bind_addr = "$PRIVATE_IP"
 
 consul {
   address = "127.0.0.1:8500"
@@ -191,7 +184,7 @@ consul {
   auto_advertise = true
   server_auto_join = true
   client_auto_join = true
-  token = "$${CONSUL_TOKEN}"
+  token = "$CONSUL_TOKEN"
 }
 
 telemetry {
@@ -210,7 +203,7 @@ plugin "docker" {
     allow_privileged = true
   }
 }
-NOMAD_EOF
+NOMAD_CONFIG
       
       # Create systemd services
       cat > /etc/systemd/system/consul.service << 'CONSUL_SVC'
@@ -260,7 +253,7 @@ NOMAD_SVC
       echo "Starting Nomad..."
       systemctl start nomad
       
-      echo "Client setup complete: $${INSTANCE_NAME}"
+      echo "Client setup complete: $INSTANCE_NAME"
       echo "Consul status: $(systemctl is-active consul)"
       echo "Nomad status: $(systemctl is-active nomad)"
     EOF
