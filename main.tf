@@ -1,0 +1,202 @@
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.0"
+    }
+    consul = {
+      source  = "hashicorp/consul"
+      version = "~> 2.20"
+    }
+    nomad = {
+      source  = "hashicorp/nomad"
+      version = "~> 2.0"
+    }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.4"
+    }
+  }
+}
+
+provider "google" {
+  project = var.project_id
+  region  = var.region
+  zone    = var.zone
+}
+
+# Create VPC Network
+resource "google_compute_network" "hashistack_vpc" {
+  name                    = "hashistack-vpc"
+  auto_create_subnetworks = false
+  description             = "VPC for HashiCorp stack deployment"
+}
+
+# Create subnet
+resource "google_compute_subnetwork" "hashistack_subnet" {
+  name          = "hashistack-subnet"
+  ip_cidr_range = var.subnet_cidr
+  region        = var.region
+  network       = google_compute_network.hashistack_vpc.id
+  
+  secondary_ip_range {
+    range_name    = "pods"
+    ip_cidr_range = "10.1.0.0/16"
+  }
+  
+  secondary_ip_range {
+    range_name    = "services"
+    ip_cidr_range = "10.2.0.0/16"
+  }
+}
+
+# Firewall rules
+resource "google_compute_firewall" "allow_internal" {
+  name    = "hashistack-allow-internal"
+  network = google_compute_network.hashistack_vpc.name
+
+  allow {
+    protocol = "tcp"
+  }
+
+  allow {
+    protocol = "udp"
+  }
+
+  allow {
+    protocol = "icmp"
+  }
+
+  source_ranges = [var.subnet_cidr, "10.1.0.0/16", "10.2.0.0/16"]
+}
+
+resource "google_compute_firewall" "allow_ssh" {
+  name    = "hashistack-allow-ssh"
+  network = google_compute_network.hashistack_vpc.name
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["hashistack"]
+}
+
+resource "google_compute_firewall" "allow_http_https" {
+  name    = "hashistack-allow-http-https"
+  network = google_compute_network.hashistack_vpc.name
+
+  allow {
+    protocol = "tcp"
+    ports    = ["80", "443", "8080", "8500", "4646", "3000", "9090"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["hashistack", "load-balancer"]
+}
+
+resource "google_compute_firewall" "allow_consul" {
+  name    = "hashistack-allow-consul"
+  network = google_compute_network.hashistack_vpc.name
+
+  allow {
+    protocol = "tcp"
+    ports    = ["8300", "8301", "8302", "8500", "8600"]
+  }
+
+  allow {
+    protocol = "udp"
+    ports    = ["8301", "8302", "8600"]
+  }
+
+  source_ranges = [var.subnet_cidr]
+  target_tags   = ["hashistack"]
+}
+
+resource "google_compute_firewall" "allow_nomad" {
+  name    = "hashistack-allow-nomad"
+  network = google_compute_network.hashistack_vpc.name
+
+  allow {
+    protocol = "tcp"
+    ports    = ["4646", "4647", "4648"]
+  }
+
+  source_ranges = [var.subnet_cidr]
+  target_tags   = ["hashistack"]
+}
+
+resource "google_compute_firewall" "allow_traefik" {
+  name    = "hashistack-allow-traefik"
+  network = google_compute_network.hashistack_vpc.name
+
+  allow {
+    protocol = "tcp"
+    ports    = ["80", "443", "8080"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["hashistack"]
+}
+
+# Generate CA certificate for internal communication
+resource "tls_private_key" "ca" {
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+
+resource "tls_self_signed_cert" "ca" {
+  private_key_pem = tls_private_key.ca.private_key_pem
+
+  subject {
+    common_name  = "HashiStack CA"
+    organization = "HashiStack Demo"
+  }
+
+  validity_period_hours = 8760 # 1 year
+
+  is_ca_certificate = true
+
+  allowed_uses = [
+    "key_encipherment",
+    "digital_signature",
+    "cert_signing",
+  ]
+}
+
+# Generate Consul encryption key
+resource "random_id" "consul_encrypt" {
+  byte_length = 32
+}
+
+# Generate ACL tokens
+resource "random_uuid" "consul_master_token" {}
+resource "random_uuid" "nomad_consul_token" {}
+resource "random_uuid" "nomad_server_token" {}
+resource "random_uuid" "nomad_client_token" {}
+
+# Create service account for workload identity
+resource "google_service_account" "hashistack_sa" {
+  account_id   = "hashistack-sa"
+  display_name = "HashiStack Service Account"
+  description  = "Service account for HashiStack workload identity"
+}
+
+resource "google_project_iam_member" "hashistack_sa_roles" {
+  for_each = toset([
+    "roles/compute.instanceAdmin.v1",
+    "roles/iam.serviceAccountUser",
+    "roles/logging.logWriter",
+    "roles/monitoring.metricWriter"
+  ])
+  
+  project = var.project_id
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.hashistack_sa.email}"
+}
