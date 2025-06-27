@@ -154,9 +154,8 @@ resource "google_compute_firewall" "allow_traefik" {
 
 # Use existing service account instead of creating new one
 data "google_service_account" "existing_sa" {
-  account_id = split("@", var.gcp_sa)[0]
+  account_id = var.gcp_sa
 }
-
 # Generate CA certificate for internal communication
 resource "tls_private_key" "ca" {
   algorithm = "RSA"
