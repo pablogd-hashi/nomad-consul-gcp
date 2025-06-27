@@ -75,6 +75,12 @@ variable "domain_name" {
   default     = "hashistack.local"
 }
 
+variable "dns_zone" {
+  description = "DNS zone for domain management"
+  type        = string
+  default     = ""
+}
+
 variable "enable_acls" {
   description = "Enable ACLs for Consul and Nomad"
   type        = bool

@@ -1,3 +1,40 @@
+# DNS Zone (optional - if managing DNS through GCP)
+data "google_dns_managed_zone" "main" {
+  count = var.dns_zone != "" ? 1 : 0
+  name  = var.dns_zone
+}
+
+# DNS records for applications (optional)
+resource "google_dns_record_set" "terramino" {
+  count = var.dns_zone != "" ? 1 : 0
+  
+  name         = "terramino.${var.domain_name}."
+  managed_zone = data.google_dns_managed_zone.main[0].name
+  type         = "A"
+  ttl          = 300
+  rrdatas      = [google_compute_global_address.lb_ip.address]
+}
+
+resource "google_dns_record_set" "grafana" {
+  count = var.dns_zone != "" ? 1 : 0
+  
+  name         = "grafana.${var.domain_name}."
+  managed_zone = data.google_dns_managed_zone.main[0].name
+  type         = "A"
+  ttl          = 300
+  rrdatas      = [google_compute_global_address.lb_ip.address]
+}
+
+resource "google_dns_record_set" "prometheus" {
+  count = var.dns_zone != "" ? 1 : 0
+  
+  name         = "prometheus.${var.domain_name}."
+  managed_zone = data.google_dns_managed_zone.main[0].name
+  type         = "A"
+  ttl          = 300
+  rrdatas      = [google_compute_global_address.lb_ip.address]
+}
+
 # Static IP for load balancer
 resource "google_compute_global_address" "lb_ip" {
   name = "hashistack-lb-ip"
