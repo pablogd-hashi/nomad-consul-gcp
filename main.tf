@@ -28,6 +28,10 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.4"
     }
+    hcp = {
+      source  = "hashicorp/hcp"
+      version = "~> 0.78"
+    }
   }
 }
 

@@ -1,6 +1,6 @@
 # HashiStack Terramino Deployment
 
-This repository contains Terraform configuration to deploy a complete HashiCorp stack on Google Cloud Platform (GCP) running the Terramino game application along with monitoring tools.
+This repository contains Terraform configuration to deploy a complete HashiCorp stack on Google Cloud Platform (GCP) using **HCP Packer** pre-built images. The deployment includes the Terramino game application along with monitoring tools.
 
 ## Architecture
 
@@ -11,14 +11,16 @@ This repository contains Terraform configuration to deploy a complete HashiCorp 
 - **Service Mesh**: Consul Connect for secure service communication
 - **API Gateway**: Traefik for internal routing
 - **Enterprise Features**: ACLs, telemetry, and enterprise licensing
+- **HCP Packer**: Pre-built immutable images with Consul 1.20.0+ent and Nomad 1.10.0+ent
 
 ## Prerequisites
 
 1. **GCP Account** with billing enabled and existing service account
 2. **Terraform Cloud** account with workspace configured
-3. **HashiCorp Enterprise Licenses** for Consul and Nomad
-4. **Existing GCP Service Account** with appropriate permissions
-5. **DNS Zone** (optional, for custom domains)
+3. **HCP Account** with Packer access for image management
+4. **HashiCorp Enterprise Licenses** for Consul and Nomad
+5. **Existing GCP Service Account** with appropriate permissions
+6. **DNS Zone** (optional, for custom domains)
 
 ## Setup Instructions
 
@@ -29,8 +31,8 @@ This repository contains Terraform configuration to deploy a complete HashiCorp 
 |----------|------|-------|-----------|-------------|
 | `consul_license` | Terraform | `your-consul-enterprise-license` | ✅ Yes | Consul Enterprise License |
 | `nomad_license` | Terraform | `your-nomad-enterprise-license` | ✅ Yes | Nomad Enterprise License |
-| `consul_version` | Terraform | `1.17.0+ent` | ❌ No | Consul version to install |
-| `nomad_version` | Terraform | `1.7.2+ent` | ❌ No | Nomad version to install |
+| `consul_version` | Terraform | `1.20.0+ent` | ❌ No | Consul version in Packer images |
+| `nomad_version` | Terraform | `1.10.0+ent` | ❌ No | Nomad version in Packer images |
 | `consul_datacenter` | Terraform | `dc1` | ❌ No | Consul datacenter name |
 | `nomad_datacenter` | Terraform | `dc1` | ❌ No | Nomad datacenter name |
 | `enable_acls` | Terraform | `true` | ❌ No | Enable ACLs for Consul and Nomad |
@@ -57,8 +59,36 @@ This repository contains Terraform configuration to deploy a complete HashiCorp 
 | `dns_zone` | Terraform | `doormat-accountid` | ❌ No | GCP DNS managed zone name |
 | `cluster_name` | Terraform | `hashistack-terramino` | ❌ No | Cluster identifier |
 | `domain_name` | Terraform | `hashistack.local` | ❌ No | Base domain name |
+| `packer_image_channel` | Terraform | `latest` | ❌ No | HCP Packer image channel |
 
-### 2. Deploy Infrastructure
+### 2. Build HCP Packer Images
+
+Before deploying infrastructure, you need to build the HashiStack images using HCP Packer.
+
+#### **Prerequisites for Packer Build:**
+1. **HCP Account** with Packer access
+2. **HCP CLI** authenticated (`hcp auth login`)
+3. **Packer** installed locally
+4. **GCP credentials** configured
+
+#### **Build Images:**
+```bash
+# Navigate to packer directory
+cd packer/
+
+# Build server image
+packer build -var="project_id=your-gcp-project-id" hashistack-server.pkr.hcl
+
+# Build client image
+packer build -var="project_id=your-gcp-project-id" hashistack-client.pkr.hcl
+```
+
+#### **Verify Images in HCP:**
+1. Go to [HCP Packer](https://portal.cloud.hashicorp.com/packer)
+2. Check for `hashistack-server` and `hashistack-client` buckets
+3. Verify latest iterations are available in the `latest` channel
+
+### 3. Deploy Infrastructure
 
 #### **Terraform Cloud UI** (Recommended)
 1. Go to your workspace in Terraform Cloud
@@ -67,7 +97,7 @@ This repository contains Terraform configuration to deploy a complete HashiCorp 
 4. Click "Confirm & Apply"
 5. Wait ~15-20 minutes for deployment
 
-### 3. Verify Deployment
+### 4. Verify Deployment
 
 After deployment completes, get the outputs:
 
@@ -80,7 +110,7 @@ terraform output -json | jq '.consul_master_token.value'
 terraform output -json | jq '.nomad_server_token.value'
 ```
 
-### 4. Access the Infrastructure
+### 5. Access the Infrastructure
 
 #### **SSH to Server-1:**
 ```bash
@@ -101,7 +131,7 @@ nomad server members
 nomad node status
 ```
 
-### 5. Deploy Applications
+### 6. Deploy Applications
 
 #### **Create Job Files Locally:**
 
@@ -360,7 +390,7 @@ nomad job run grafana.nomad.hcl
 nomad job run terramino.nomad.hcl
 ```
 
-### 6. Access Applications
+### 7. Access Applications
 
 #### **Direct Access via Client IPs:**
 ```bash
@@ -382,7 +412,7 @@ curl http://<client-ip>:3000  # Grafana
 - **Nomad UI**: http://<server-ip>:4646
 - **Traefik Dashboard**: http://<client-ip>:8080
 
-### 7. DNS Configuration
+### 8. DNS Configuration
 
 #### **Option 1: Use your DNS zone (Automatic)**
 If `dns_zone` is configured, DNS records are created automatically.
@@ -508,10 +538,19 @@ terraform destroy
 
 **Warning**: This will permanently delete all infrastructure and data.
 
+## Key Benefits of HCP Packer Approach
+
+- **Faster Deployments**: Pre-built images reduce deployment time from ~20 minutes to ~5 minutes
+- **Immutable Infrastructure**: Consistent, tested images with baked-in configurations
+- **Version Control**: HCP Packer tracks image iterations and channels for rollbacks
+- **Simplified Terraform**: Removed 270+ line startup scripts, replaced with 20-line configurations
+- **Enterprise Ready**: Uses Consul 1.20.0+ent and Nomad 1.10.0+ent with proper licensing
+
 ## Key Differences from Standard Deployment
 
 - **Uses existing GCP service account** instead of creating new one
 - **Leverages existing DNS zone** for domain management
-- **Hardcoded software versions** for stability
+- **Pre-built images** via HCP Packer instead of runtime installation
 - **Simplified permissions** model using existing service accounts
 - **Enterprise features** enabled with proper licensing
+- **HCP Packer registry** for image metadata and version tracking

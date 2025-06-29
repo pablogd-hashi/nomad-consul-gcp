@@ -48,13 +48,13 @@ variable "nomad_license" {
 variable "consul_version" {
   description = "Consul version to install"
   type        = string
-  default     = "1.17.0+ent"
+  default     = "1.20.0+ent"
 }
 
 variable "nomad_version" {
   description = "Nomad version to install"
   type        = string
-  default     = "1.7.2+ent"
+  default     = "1.10.0+ent"
 }
 
 variable "consul_datacenter" {
@@ -114,6 +114,12 @@ variable "nomad_log_level" {
   description = "Nomad log level"
   type        = string
   default     = "INFO"
+}
+
+variable "packer_image_channel" {
+  description = "HCP Packer image channel"
+  type        = string
+  default     = "latest"
 }
 
 variable "ssh_public_key" {
