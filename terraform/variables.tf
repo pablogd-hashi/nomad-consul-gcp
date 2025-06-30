@@ -125,7 +125,7 @@ variable "packer_image_channel" {
 variable "use_hcp_packer" {
   description = "Use HCP Packer images or fallback to base Ubuntu image"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "ssh_public_key" {

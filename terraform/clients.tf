@@ -9,7 +9,7 @@ resource "google_compute_instance" "nomad_clients" {
 
   boot_disk {
     initialize_params {
-      image = var.use_hcp_packer ? data.hcp_packer_artifact.hashistack_client[0].external_identifier : "ubuntu-os-cloud/ubuntu-2204-lts"
+      image = var.use_hcp_packer ? data.hcp_packer_artifact.hashistack_client[0].external_identifier : "global/images/hashistack-server-20250630053954"
       size  = 100
       type  = "pd-standard"
     }
