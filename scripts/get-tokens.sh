@@ -4,8 +4,16 @@
 echo "🔐 Getting all authentication tokens..."
 echo "================================================"
 
+# Check if we're in the right directory
+if [[ ! -f "terraform/main.tf" ]]; then
+    echo "❌ Error: Please run this script from the repository root"
+    exit 1
+fi
+
+cd terraform/
+
 # Get all tokens from Terraform output
-echo "📋 Copying tokens to clipboard and displaying..."
+echo "📋 Displaying all tokens and access information..."
 echo ""
 
 # Display individual tokens

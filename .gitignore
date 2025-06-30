@@ -1,56 +1,47 @@
-# Terraform files and directories
-*.tfstate
-*.tfstate.*
-*.tfstate.backup
-*.tfvars
-!*.tfvars.example
-.terraform/
-.terraform.lock.hcl
-terraform.tfplan
-terraform.tfplan.*
-.terraformrc
-terraform.rc
-
-# Crash log files
-crash.log
-crash.*.log
-
-# Exclude all .tfvars files, which are likely to contain sensitive data
-*.auto.tfvars
-*.auto.tfvars.json
-
-# Include override files you do wish to add to version control
-# override.tf
-# override.tf.json
-# *_override.tf
-# *_override.tf.json
-
-# Include tfplan files to ignore the plan output of command: terraform plan -out=tfplan
-# example: *tfplan*
-
-# HashiCorp Vault
-.vault-token
-
-# HashiCorp Consul
-.consul-token
-
-# HashiCorp Nomad
-.nomad-token
+# Terraform
+**/.terraform/
+**/.terraform.lock.hcl
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/terraform.tfvars
+**/.terraform.tfvars
+**/crash.log
+**/override.tf
+**/override.tf.json
+**/*_override.tf
+**/*_override.tf.json
 
 # Packer
-packer_cache/
-*.box
+**/packer_cache/
+**/manifest*.json
+**/*.pkrvars.hcl
+!**/common.pkrvars.hcl
 
-# IDE and Editor files
+# Consul & Nomad
+**/consul.d/
+**/nomad.d/
+**/*.lic
+**/*-token
+
+# SSH Keys
+**/*.pem
+**/*.key
+**/id_rsa*
+**/id_ed25519*
+
+# Environment files
+**/.env
+**/.env.local
+**/.env.*.local
+
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-.DS_Store
-Thumbs.db
 
-# OS generated files
+# OS
 .DS_Store
 .DS_Store?
 ._*
@@ -60,82 +51,16 @@ ehthumbs.db
 Thumbs.db
 
 # Logs
-*.log
-logs/
-
-# SSH keys
-*.pem
-*.key
-!ca-key.pem.example
-
-# Certificates and secrets
-*.crt
-*.cert
-*.p12
-*.pfx
-secrets/
-certs/
-
-# Environment files
-.env
-.env.local
-.env.*.local
-
-# Backup files
-*.bak
-*.backup
-*.tmp
-
-# Archive files
-*.zip
-*.tar.gz
-*.tar.bz2
-*.rar
-
-# Node.js (if using any JS tooling)
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Python (if using any Python tooling)
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
-
-# Go (if using any Go tooling)
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.test
-*.out
-vendor/
-
-# Ansible (if using for provisioning)
-*.retry
-.vault_pass
-
-# Custom application data
-data/
-volumes/
-storage/
-
-# Generated documentation
-docs/_build/
-docs/site/
-
-# Test files
-test-results/
-coverage/
+**/*.log
 
 # Temporary files
-tmp/
-temp/
-.tmp/
+**/tmp/
+**/temp/
+
+# Backup files
+**/*.bak
+**/*.backup
+
+# Test outputs
+**/test-results/
+**/coverage/

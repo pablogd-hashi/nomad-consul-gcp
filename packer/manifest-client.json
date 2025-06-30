@@ -12,7 +12,20 @@
         "image_family": "hashistack-server",
         "nomad_version": "1.10.0+ent"
       }
+    },
+    {
+      "name": "hashistack_client",
+      "builder_type": "googlecompute",
+      "build_time": 1751260055,
+      "files": null,
+      "artifact_id": "hashistack-server-20250630050408",
+      "packer_run_uuid": "a7488847-2bc5-b470-791e-72d3df59b2a4",
+      "custom_data": {
+        "consul_version": "1.20.0+ent",
+        "image_family": "hashistack-server",
+        "nomad_version": "1.10.0+ent"
+      }
     }
   ],
-  "last_run_uuid": "f236d7e9-879b-3348-d2ec-a87b8eccd5bf"
+  "last_run_uuid": "a7488847-2bc5-b470-791e-72d3df59b2a4"
 }

@@ -90,7 +90,7 @@ build {
   provisioner "shell" {
     inline = [
       "sudo apt-get update",
-      "sudo apt-get install -y unzip curl jq docker.io docker-compose wget",
+      "sudo apt-get install -y unzip curl jq docker.io wget",
       "sudo systemctl start docker",
       "sudo systemctl enable docker",
       "sudo usermod -aG docker ubuntu"

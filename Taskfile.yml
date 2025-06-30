@@ -1,0 +1,182 @@
+version: '3'
+
+vars:
+  TERRAFORM_DIR: terraform
+  PACKER_DIR: packer
+  JOBS_DIR: nomad-jobs
+  SCRIPTS_DIR: scripts
+
+env:
+  TF_IN_AUTOMATION: "true"
+
+tasks:
+  default:
+    desc: "🚀 Main Commands"
+    silent: true
+    cmds:
+      - echo "🚀 HashiStack Deployment Tasks"
+      - echo "=============================="
+      - echo ""
+      - echo "🏗️  Infrastructure:"
+      - echo "   task provision    - Deploy all infrastructure"
+      - echo "   task destroy      - Destroy everything"
+      - echo ""
+      - echo "📊 Applications:"
+      - echo "   task observability - Deploy monitoring (Grafana, Prometheus)"
+      - echo "   task apps          - Deploy applications (Terramino, etc)"
+      - echo ""
+      - echo "🖼️  Images:"
+      - echo "   task build-server  - Build server image with Packer"
+      - echo "   task build-client  - Build client image with Packer"
+      - echo ""
+      - echo "ℹ️  Info:"
+      - echo "   task tokens        - Get access tokens"
+      - echo "   task status        - Check system status"
+      - echo "   task urls          - Get all URLs"
+
+  # Main Infrastructure Commands
+  provision:
+    desc: "🏗️ Deploy all infrastructure (servers, clients, networking)"
+    dir: "{{.TERRAFORM_DIR}}"
+    cmds:
+      - echo "🏗️ Provisioning HashiStack infrastructure..."
+      - terraform init
+      - terraform plan
+      - terraform apply
+      - echo ""
+      - echo "✅ Infrastructure provisioned!"
+      - echo "📋 Run 'task tokens' to get access credentials"
+
+  destroy:
+    desc: "💥 Destroy all infrastructure"
+    dir: "{{.TERRAFORM_DIR}}"
+    prompt: "Are you sure you want to destroy ALL infrastructure?"
+    cmds:
+      - echo "💥 Destroying all infrastructure..."
+      - terraform destroy
+      - echo "✅ Everything destroyed!"
+
+  # Application Deployment
+  observability:
+    desc: "📊 Deploy monitoring stack (Grafana, Prometheus, Traefik)"
+    cmds:
+      - echo "📊 Deploying observability stack..."
+      - task: _wait-nomad
+      - echo "   🚛 Deploying Traefik (Load Balancer)..."
+      - nomad job run {{.JOBS_DIR}}/core/traefik.nomad.hcl
+      - echo "   📈 Deploying Prometheus (Metrics)..."
+      - nomad job run {{.JOBS_DIR}}/core/prometheus.nomad.hcl
+      - echo "   📊 Deploying Grafana (Dashboards)..."
+      - nomad job run {{.JOBS_DIR}}/core/grafana.nomad.hcl
+      - echo ""
+      - echo "✅ Observability stack deployed!"
+      - echo "🌐 Access Grafana at http://server-ip:3000 (admin/admin)"
+
+  apps:
+    desc: "🎮 Deploy applications (Terramino demo game)"
+    cmds:
+      - echo "🎮 Deploying applications..."
+      - task: _wait-nomad
+      - echo "   🎯 Deploying Terramino game..."
+      - nomad job run {{.JOBS_DIR}}/applications/terramino.nomad.hcl
+      - echo ""
+      - echo "✅ Applications deployed!"
+      - echo "🎮 Play Terramino at the load balancer URL"
+
+  # Image Building
+  build-server:
+    desc: "🖼️ Build HashiStack server image with Packer"
+    dir: "{{.PACKER_DIR}}/builds"
+    cmds:
+      - echo "🖼️ Building HashiStack server image..."
+      - packer validate -var-file=../variables/common.pkrvars.hcl hashistack-server.pkr.hcl
+      - packer build -var-file=../variables/common.pkrvars.hcl hashistack-server.pkr.hcl
+      - echo "✅ Server image built and published to HCP Packer!"
+
+  build-client:
+    desc: "🖼️ Build HashiStack client image with Packer"
+    dir: "{{.PACKER_DIR}}/builds"
+    cmds:
+      - echo "🖼️ Building HashiStack client image..."
+      - packer validate -var-file=../variables/common.pkrvars.hcl hashistack-client.pkr.hcl
+      - packer build -var-file=../variables/common.pkrvars.hcl hashistack-client.pkr.hcl
+      - echo "✅ Client image built and published to HCP Packer!"
+
+  # Info Commands
+  tokens:
+    desc: "🔑 Get all authentication tokens"
+    dir: "{{.TERRAFORM_DIR}}"
+    cmds:
+      - echo "🔑 Authentication Tokens"
+      - echo "========================"
+      - echo ""
+      - echo "Consul Master Token:"
+      - terraform output -raw consul_master_token
+      - echo ""
+      - echo "Nomad Server Token:"
+      - terraform output -raw nomad_server_token
+      - echo ""
+      - echo "💻 Quick Setup Commands:"
+      - echo "export CONSUL_HTTP_ADDR=$(terraform output -json consul_ui_urls | jq -r '.[0]')"
+      - echo "export CONSUL_HTTP_TOKEN=$(terraform output -raw consul_master_token)"
+      - echo "export NOMAD_ADDR=$(terraform output -json nomad_ui_urls | jq -r '.[0]')"
+      - echo "export NOMAD_TOKEN=$(terraform output -raw nomad_server_token)"
+
+  urls:
+    desc: "🌐 Get all access URLs"
+    dir: "{{.TERRAFORM_DIR}}"
+    cmds:
+      - echo "🌐 Access URLs"
+      - echo "=============="
+      - echo ""
+      - echo "Consul UI:"
+      - terraform output consul_ui_urls
+      - echo ""
+      - echo "Nomad UI:"
+      - terraform output nomad_ui_urls
+      - echo ""
+      - echo "Applications:"
+      - terraform output application_urls
+
+  status:
+    desc: "📊 Check system status"
+    cmds:
+      - echo "📊 System Status"
+      - echo "================"
+      - echo ""
+      - echo "Nomad Jobs:"
+      - nomad job status || echo "❌ Nomad not accessible (run 'task tokens' to get connection info)"
+      - echo ""
+      - echo "Consul Members:"
+      - consul members || echo "❌ Consul not accessible (run 'task tokens' to get connection info)"
+
+  # Internal helper tasks (hidden from main list)
+  _wait-nomad:
+    internal: true
+    cmds:
+      - |
+        echo "⏳ Waiting for Nomad to be ready..."
+        max_attempts=30
+        attempt=0
+        while [ $attempt -lt $max_attempts ]; do
+          if nomad server members >/dev/null 2>&1; then
+            echo "✅ Nomad is ready"
+            exit 0
+          fi
+          echo "   Waiting... (attempt $((attempt + 1))/$max_attempts)"
+          sleep 10
+          attempt=$((attempt + 1))
+        done
+        echo "❌ Nomad failed to become ready"
+        echo "💡 Make sure to set environment variables: task tokens"
+        exit 1
+
+  _setup-env:
+    internal: true
+    dir: "{{.TERRAFORM_DIR}}"
+    cmds:
+      - |
+        export CONSUL_HTTP_ADDR=$(terraform output -json consul_ui_urls | jq -r '.[0]')
+        export CONSUL_HTTP_TOKEN=$(terraform output -raw consul_master_token)
+        export NOMAD_ADDR=$(terraform output -json nomad_ui_urls | jq -r '.[0]')
+        export NOMAD_TOKEN=$(terraform output -raw nomad_server_token)
