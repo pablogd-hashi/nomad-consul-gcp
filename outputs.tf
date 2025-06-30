@@ -120,6 +120,17 @@ output "ssh_commands" {
   }
 }
 
+output "quick_start_commands" {
+  description = "Ready-to-use commands for immediate access"
+  value = {
+    consul_env = "export CONSUL_HTTP_ADDR=http://${google_compute_instance.nomad_servers[0].network_interface[0].access_config[0].nat_ip}:8500 && export CONSUL_HTTP_TOKEN=${random_uuid.consul_master_token.result}"
+    nomad_env = "export NOMAD_ADDR=http://${google_compute_instance.nomad_servers[0].network_interface[0].access_config[0].nat_ip}:4646 && export NOMAD_TOKEN=${random_uuid.nomad_server_token.result}"
+    consul_ui = "http://${google_compute_instance.nomad_servers[0].network_interface[0].access_config[0].nat_ip}:8500"
+    nomad_ui = "http://${google_compute_instance.nomad_servers[0].network_interface[0].access_config[0].nat_ip}:4646"
+    get_all_tokens = "./get-tokens.sh"
+  }
+}
+
 output "dns_configuration" {
   description = "DNS configuration needed for domain routing"
   value = {
