@@ -9,21 +9,13 @@ provider "hcp" {
 }
 
 # Generate random tokens for demo purposes
-resource "random_uuid" "consul_master_token" {
-  description = "Consul master/management token"
-}
+resource "random_uuid" "consul_master_token" {}
 
-resource "random_uuid" "nomad_server_token" {
-  description = "Nomad server token for Consul access"
-}
+resource "random_uuid" "nomad_server_token" {}
 
-resource "random_uuid" "nomad_client_token" {
-  description = "Nomad client token for Consul access"
-}
+resource "random_uuid" "nomad_client_token" {}
 
-resource "random_uuid" "application_token" {
-  description = "Application token for service registration"
-}
+resource "random_uuid" "application_token" {}
 
 resource "random_string" "consul_encrypt_key" {
   length  = 32
@@ -184,8 +176,3 @@ resource "random_id" "consul_encrypt" {
   byte_length = 32
 }
 
-# Generate ACL tokens
-resource "random_uuid" "consul_master_token" {}
-resource "random_uuid" "nomad_consul_token" {}
-resource "random_uuid" "nomad_server_token" {}
-resource "random_uuid" "nomad_client_token" {}

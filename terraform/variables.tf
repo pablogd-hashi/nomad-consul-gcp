@@ -122,6 +122,12 @@ variable "packer_image_channel" {
   default     = "latest"
 }
 
+variable "use_hcp_packer" {
+  description = "Use HCP Packer images or fallback to base Ubuntu image"
+  type        = bool
+  default     = false
+}
+
 variable "ssh_public_key" {
   description = "SSH public key for instance access"
   type        = string

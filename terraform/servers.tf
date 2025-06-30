@@ -9,7 +9,7 @@ resource "google_compute_instance" "nomad_servers" {
 
   boot_disk {
     initialize_params {
-      image = data.hcp_packer_artifact.hashistack_server.external_identifier
+      image = var.use_hcp_packer ? data.hcp_packer_artifact.hashistack_server[0].external_identifier : "ubuntu-os-cloud/ubuntu-2204-lts"
       size  = 50
       type  = "pd-standard"
     }
@@ -49,8 +49,230 @@ resource "google_compute_instance" "nomad_servers" {
       export NOMAD_LOG_LEVEL="${var.nomad_log_level}"
       export ENABLE_ACLS="${var.enable_acls}"
       
-      # Run the configuration script from the Packer image
-      /opt/hashistack/scripts/configure-server.sh
+      # Install and configure HashiStack
+      if [ "${var.use_hcp_packer}" = "true" ]; then
+        echo "Using custom Packer image with pre-installed HashiStack"
+        /opt/hashistack/scripts/configure-server.sh
+      else
+        echo "Installing HashiStack on base Ubuntu image"
+        
+        # Update system and install dependencies
+        apt-get update
+        apt-get install -y unzip curl jq docker.io docker-compose
+        
+        # Start and enable Docker
+        systemctl start docker
+        systemctl enable docker
+        usermod -aG docker ubuntu
+        
+        # Create directories
+        mkdir -p /opt/consul/{bin,data,config,logs}
+        mkdir -p /opt/nomad/{bin,data,config,logs}
+        mkdir -p /opt/hashistack/scripts
+        
+        # Create users
+        useradd --system --home /opt/consul --shell /bin/false consul || true
+        useradd --system --home /opt/nomad --shell /bin/false nomad || true
+        
+        # Set permissions
+        chown -R consul:consul /opt/consul
+        chown -R nomad:nomad /opt/nomad
+        
+        # Download and install Consul
+        cd /tmp
+        curl -fsSL https://releases.hashicorp.com/consul/${var.consul_version}/consul_${var.consul_version}_linux_amd64.zip -o consul.zip
+        unzip consul.zip
+        mv consul /opt/consul/bin/
+        chown consul:consul /opt/consul/bin/consul
+        chmod +x /opt/consul/bin/consul
+        rm consul.zip
+        
+        # Download and install Nomad
+        curl -fsSL https://releases.hashicorp.com/nomad/${var.nomad_version}/nomad_${var.nomad_version}_linux_amd64.zip -o nomad.zip
+        unzip nomad.zip
+        mv nomad /opt/nomad/bin/
+        chown nomad:nomad /opt/nomad/bin/nomad
+        chmod +x /opt/nomad/bin/nomad
+        rm nomad.zip
+        
+        # Create systemd service files
+        cat > /etc/systemd/system/consul.service << 'CONSUL_SERVICE'
+[Unit]
+Description=Consul
+Documentation=https://www.consul.io/
+Requires=network-online.target
+After=network-online.target
+ConditionFileNotEmpty=/opt/consul/config/consul.hcl
+
+[Service]
+Type=notify
+User=consul
+Group=consul
+ExecStart=/opt/consul/bin/consul agent -config-dir=/opt/consul/config/
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+Restart=on-failure
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+CONSUL_SERVICE
+
+        cat > /etc/systemd/system/nomad.service << 'NOMAD_SERVICE'
+[Unit]
+Description=Nomad
+Documentation=https://www.nomadproject.io/
+Requires=network-online.target
+After=network-online.target consul.service
+ConditionFileNotEmpty=/opt/nomad/config/nomad.hcl
+
+[Service]
+Type=exec
+User=nomad
+Group=nomad
+ExecStart=/opt/nomad/bin/nomad agent -config=/opt/nomad/config/nomad.hcl
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+Restart=on-failure
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+NOMAD_SERVICE
+
+        systemctl daemon-reload
+      fi
+      
+      # Common configuration (works for both Packer and base images)
+      # Get instance metadata
+      INSTANCE_NAME=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/name" -H "Metadata-Flavor: Google")
+      PRIVATE_IP=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip" -H "Metadata-Flavor: Google")
+      
+      echo "Configuring HashiStack server: $INSTANCE_NAME"
+      
+      # Create license files
+      if [ -n "$CONSUL_LICENSE" ]; then
+        echo "$CONSUL_LICENSE" > /opt/consul/consul.lic
+        chown consul:consul /opt/consul/consul.lic
+        chmod 600 /opt/consul/consul.lic
+      fi
+      
+      if [ -n "$NOMAD_LICENSE" ]; then
+        echo "$NOMAD_LICENSE" > /opt/nomad/nomad.lic
+        chown nomad:nomad /opt/nomad/nomad.lic
+        chmod 600 /opt/nomad/nomad.lic
+      fi
+      
+      # Create Consul configuration
+      cat > /opt/consul/config/consul.hcl << CONSUL_CONFIG
+datacenter = "$${CONSUL_DATACENTER:-dc1}"
+data_dir = "/opt/consul/data"
+log_level = "$${CONSUL_LOG_LEVEL:-INFO}"
+node_name = "$INSTANCE_NAME"
+server = true
+bootstrap_expect = $${SERVER_COUNT:-3}
+retry_join = ["provider=gce project_name=$${PROJECT_ID} tag_value=consul-server"]
+bind_addr = "$PRIVATE_IP"
+client_addr = "0.0.0.0"
+
+ui_config {
+  enabled = true
+}
+
+connect {
+  enabled = true
+}
+
+license_path = "/opt/consul/consul.lic"
+encrypt = "$CONSUL_ENCRYPT_KEY"
+
+acl = {
+  enabled = $${ENABLE_ACLS:-true}
+  default_policy = "deny"
+  enable_token_persistence = true
+  tokens {
+    initial_management = "$${CONSUL_MASTER_TOKEN}"
+  }
+}
+
+telemetry {
+  prometheus_retention_time = "24h"
+  disable_hostname = true
+}
+
+ports {
+  grpc = 8502
+}
+CONSUL_CONFIG
+
+      # Create Nomad configuration
+      cat > /opt/nomad/config/nomad.hcl << NOMAD_CONFIG
+datacenter = "$${NOMAD_DATACENTER:-dc1}"
+data_dir = "/opt/nomad/data"
+log_level = "$${NOMAD_LOG_LEVEL:-INFO}"
+name = "$INSTANCE_NAME"
+
+license_path = "/opt/nomad/nomad.lic"
+
+server {
+  enabled = true
+  bootstrap_expect = $${SERVER_COUNT:-3}
+  
+  server_join {
+    retry_join = ["provider=gce project_name=$${PROJECT_ID} tag_value=nomad-server"]
+    retry_max = 3
+    retry_interval = "15s"
+  }
+}
+
+bind_addr = "$PRIVATE_IP"
+
+consul {
+  address = "127.0.0.1:8500"
+  server_service_name = "nomad"
+  client_service_name = "nomad-client"
+  auto_advertise = true
+  server_auto_join = true
+  client_auto_join = true
+  token = "$${NOMAD_CONSUL_TOKEN}"
+}
+
+acl {
+  enabled = $${ENABLE_ACLS:-true}
+  token_ttl = "30s"
+  policy_ttl = "60s"
+  role_ttl = "60s"
+}
+
+telemetry {
+  collection_interval = "1s"
+  disable_hostname = true
+  prometheus_metrics = true
+  publish_allocation_metrics = true
+  publish_node_metrics = true
+}
+
+ui {
+  enabled = true
+  consul {
+    ui_url = "http://localhost:8500/ui"
+  }
+}
+NOMAD_CONFIG
+
+      # Set permissions
+      chown consul:consul /opt/consul/config/consul.hcl
+      chown nomad:nomad /opt/nomad/config/nomad.hcl
+      chmod 640 /opt/consul/config/consul.hcl
+      chmod 640 /opt/nomad/config/nomad.hcl
+      
+      # Start services
+      systemctl enable consul nomad
+      systemctl start consul
+      sleep 10
+      systemctl start nomad
+      
+      echo "HashiStack server configuration complete: $INSTANCE_NAME"
       
       # Bootstrap ACLs on first server
       SERVER_IDX="${count.index + 1}"
