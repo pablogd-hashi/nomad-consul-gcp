@@ -1,0 +1,18 @@
+{
+  "builds": [
+    {
+      "name": "hashistack_client",
+      "builder_type": "googlecompute",
+      "build_time": 1751259351,
+      "files": null,
+      "artifact_id": "hashistack-server-20250630045227",
+      "packer_run_uuid": "f236d7e9-879b-3348-d2ec-a87b8eccd5bf",
+      "custom_data": {
+        "consul_version": "1.20.0+ent",
+        "image_family": "hashistack-server",
+        "nomad_version": "1.10.0+ent"
+      }
+    }
+  ],
+  "last_run_uuid": "f236d7e9-879b-3348-d2ec-a87b8eccd5bf"
+}

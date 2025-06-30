@@ -7,18 +7,6 @@ packer {
   }
 }
 
-# HCP Packer registry configuration
-hcp_packer_registry {
-  bucket_name = "hashistack-client"
-  description = "HashiStack Client images with Consul and Nomad Enterprise"
-  
-  bucket_labels = {
-    "team"        = "platform"
-    "environment" = "production"
-    "consul"      = var.consul_version
-    "nomad"       = var.nomad_version
-  }
-}
 
 variable "project_id" {
   type        = string
@@ -257,13 +245,13 @@ fi
 
 # Create Consul configuration
 sudo tee /opt/consul/config/consul.hcl > /dev/null << CONSUL_CONFIG
-datacenter = "\${CONSUL_DATACENTER:-dc1}"
+datacenter = "\$${CONSUL_DATACENTER:-dc1}"
 data_dir = "/opt/consul/data"
-log_level = "\${CONSUL_LOG_LEVEL:-INFO}"
+log_level = "\$${CONSUL_LOG_LEVEL:-INFO}"
 node_name = "$INSTANCE_NAME"
 bind_addr = "$PRIVATE_IP"
 client_addr = "0.0.0.0"
-retry_join = ["provider=gce project_name=\${PROJECT_ID} tag_value=consul-server"]
+retry_join = ["provider=gce project_name=\$${PROJECT_ID} tag_value=consul-server"]
 
 connect {
   enabled = true
@@ -273,11 +261,11 @@ license_path = "/opt/consul/consul.lic"
 encrypt = "$CONSUL_ENCRYPT_KEY"
 
 acl = {
-  enabled = \${ENABLE_ACLS:-true}
+  enabled = \$${ENABLE_ACLS:-true}
   default_policy = "deny"
   enable_token_persistence = true
   tokens {
-    default = "\${CONSUL_TOKEN}"
+    default = "\$${CONSUL_TOKEN}"
   }
 }
 
@@ -293,9 +281,9 @@ CONSUL_CONFIG
 
 # Create Nomad configuration
 sudo tee /opt/nomad/config/nomad.hcl > /dev/null << NOMAD_CONFIG
-datacenter = "\${NOMAD_DATACENTER:-dc1}"
+datacenter = "\$${NOMAD_DATACENTER:-dc1}"
 data_dir = "/opt/nomad/data"
-log_level = "\${NOMAD_LOG_LEVEL:-INFO}"
+log_level = "\$${NOMAD_LOG_LEVEL:-INFO}"
 name = "$INSTANCE_NAME"
 
 license_path = "/opt/nomad/nomad.lic"
@@ -304,7 +292,7 @@ client {
   enabled = true
   
   server_join {
-    retry_join = ["provider=gce project_name=\${PROJECT_ID} tag_value=nomad-server"]
+    retry_join = ["provider=gce project_name=\$${PROJECT_ID} tag_value=nomad-server"]
     retry_max = 3
     retry_interval = "15s"
   }
@@ -339,7 +327,7 @@ consul {
   auto_advertise = true
   server_auto_join = true
   client_auto_join = true
-  token = "\${CONSUL_TOKEN}"
+  token = "\$${CONSUL_TOKEN}"
 }
 
 telemetry {
@@ -418,6 +406,19 @@ EOF
       consul_version = var.consul_version
       nomad_version  = var.nomad_version
       image_family   = var.image_family
+    }
+  }
+
+  # HCP Packer registry configuration
+  hcp_packer_registry {
+    bucket_name = "hashistack-client"
+    description = "HashiStack Client images with Consul and Nomad Enterprise"
+    
+    bucket_labels = {
+      "team"        = "platform"
+      "environment" = "production"
+      "consul"      = var.consul_version
+      "nomad"       = var.nomad_version
     }
   }
 }

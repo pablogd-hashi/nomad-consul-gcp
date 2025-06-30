@@ -30,7 +30,7 @@ terraform {
     }
     hcp = {
       source  = "hashicorp/hcp"
-      version = "~> 0.78"
+      version = "~> 0.82"
     }
   }
 }
@@ -39,6 +39,37 @@ provider "google" {
   project = var.project_id
   region  = var.region
   zone    = var.zone
+}
+
+provider "hcp" {
+  # HCP provider configuration - uses HCP_CLIENT_ID and HCP_CLIENT_SECRET environment variables
+}
+
+# Generate random tokens for demo purposes
+resource "random_uuid" "consul_master_token" {
+  description = "Consul master/management token"
+}
+
+resource "random_uuid" "nomad_server_token" {
+  description = "Nomad server token for Consul access"
+}
+
+resource "random_uuid" "nomad_client_token" {
+  description = "Nomad client token for Consul access"
+}
+
+resource "random_uuid" "application_token" {
+  description = "Application token for service registration"
+}
+
+resource "random_string" "consul_encrypt_key" {
+  length  = 32
+  special = false
+}
+
+resource "random_string" "nomad_encrypt_key" {
+  length  = 32
+  special = false
 }
 
 # Create VPC Network

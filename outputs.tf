@@ -55,6 +55,44 @@ output "nomad_server_token" {
   sensitive   = true
 }
 
+output "nomad_client_token" {
+  description = "Nomad client token for Consul access"
+  value       = random_uuid.nomad_client_token.result
+  sensitive   = true
+}
+
+output "application_token" {
+  description = "Application token for service registration"
+  value       = random_uuid.application_token.result
+  sensitive   = true
+}
+
+output "consul_encrypt_key" {
+  description = "Consul gossip encryption key"
+  value       = base64encode(random_string.consul_encrypt_key.result)
+  sensitive   = true
+}
+
+output "nomad_encrypt_key" {
+  description = "Nomad gossip encryption key"
+  value       = base64encode(random_string.nomad_encrypt_key.result)
+  sensitive   = true
+}
+
+# Convenience output to show all tokens at once
+output "all_tokens" {
+  description = "All authentication tokens and keys for easy access"
+  value = {
+    consul_master_token   = random_uuid.consul_master_token.result
+    nomad_server_token   = random_uuid.nomad_server_token.result
+    nomad_client_token   = random_uuid.nomad_client_token.result
+    application_token    = random_uuid.application_token.result
+    consul_encrypt_key   = base64encode(random_string.consul_encrypt_key.result)
+    nomad_encrypt_key    = base64encode(random_string.nomad_encrypt_key.result)
+  }
+  sensitive = true
+}
+
 output "application_urls" {
   description = "Application URLs via load balancer"
   value = var.dns_zone != "" ? {

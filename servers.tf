@@ -9,7 +9,7 @@ resource "google_compute_instance" "nomad_servers" {
 
   boot_disk {
     initialize_params {
-      image = data.hcp_packer_image.hashistack_server.cloud_image_id
+      image = data.hcp_packer_artifact.hashistack_server.external_identifier
       size  = 50
       type  = "pd-standard"
     }
@@ -37,8 +37,10 @@ resource "google_compute_instance" "nomad_servers" {
       export CONSUL_DATACENTER="${var.consul_datacenter}"
       export NOMAD_DATACENTER="${var.nomad_datacenter}"
       export CONSUL_MASTER_TOKEN="${random_uuid.consul_master_token.result}"
-      export NOMAD_CONSUL_TOKEN="${random_uuid.nomad_consul_token.result}"
+      export NOMAD_CONSUL_TOKEN="${random_uuid.nomad_server_token.result}"
       export NOMAD_SERVER_TOKEN="${random_uuid.nomad_server_token.result}"
+      export CONSUL_ENCRYPT_KEY="${base64encode(random_string.consul_encrypt_key.result)}"
+      export NOMAD_ENCRYPT_KEY="${base64encode(random_string.nomad_encrypt_key.result)}"
       export CONSUL_LICENSE="${var.consul_license}"
       export NOMAD_LICENSE="${var.nomad_license}"
       export SERVER_COUNT="3"
@@ -46,9 +48,6 @@ resource "google_compute_instance" "nomad_servers" {
       export CONSUL_LOG_LEVEL="${var.consul_log_level}"
       export NOMAD_LOG_LEVEL="${var.nomad_log_level}"
       export ENABLE_ACLS="${var.enable_acls}"
-      
-      # Generate Consul encryption key
-      export CONSUL_ENCRYPT_KEY=$(/opt/consul/bin/consul keygen)
       
       # Run the configuration script from the Packer image
       /opt/hashistack/scripts/configure-server.sh
