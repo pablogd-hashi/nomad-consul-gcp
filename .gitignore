@@ -64,3 +64,6 @@ Thumbs.db
 # Test outputs
 **/test-results/
 **/coverage/
+
+# Claude Code files (keep local only)
+CLAUDE.md

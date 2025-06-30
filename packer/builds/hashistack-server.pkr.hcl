@@ -56,6 +56,16 @@ source "googlecompute" "consul-nomad" {
 build {
   name = "consul-nomad-server"
   sources = ["source.googlecompute.consul-nomad"]
+  
+  hcp_packer_registry {
+    bucket_name = "consul-nomad-server"
+    description = "Consul ${var.consul_version} and Nomad ${var.nomad_version} Server Image"
+    bucket_labels = {
+      "consul-version" = var.consul_version,
+      "nomad-version"  = var.nomad_version,
+      "os"             = "debian-12"
+    }
+  }
 
   # Install Consul
   provisioner "shell" {

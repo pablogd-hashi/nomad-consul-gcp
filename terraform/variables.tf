@@ -48,13 +48,13 @@ variable "nomad_license" {
 variable "consul_version" {
   description = "Consul version to install"
   type        = string
-  default     = "1.20.0+ent"
+  default     = "1.17.0+ent"
 }
 
 variable "nomad_version" {
   description = "Nomad version to install"
   type        = string
-  default     = "1.10.0+ent"
+  default     = "1.7.2+ent"
 }
 
 variable "consul_datacenter" {

@@ -38,7 +38,31 @@
         "image_family": "hashistack-server",
         "nomad_version": "1.10.0+ent"
       }
+    },
+    {
+      "name": "consul-nomad",
+      "builder_type": "googlecompute",
+      "build_time": 1751277729,
+      "files": null,
+      "artifact_id": "consul-nomad-client-20250630095822",
+      "packer_run_uuid": "0b70026a-a0ee-e7ee-dcf0-b1722a212019",
+      "custom_data": {
+        "consul_version": "1.21.2+ent",
+        "nomad_version": "1.10.2+ent"
+      }
+    },
+    {
+      "name": "consul-nomad",
+      "builder_type": "googlecompute",
+      "build_time": 1751278860,
+      "files": null,
+      "artifact_id": "consul-nomad-client-20250630101700",
+      "packer_run_uuid": "a6ce1fcb-9914-ce4c-b7b8-1643a1b5f176",
+      "custom_data": {
+        "consul_version": "1.21.2+ent",
+        "nomad_version": "1.10.2+ent"
+      }
     }
   ],
-  "last_run_uuid": "a670fc89-f1c7-eb6f-6c17-849fc8e9ac15"
+  "last_run_uuid": "a6ce1fcb-9914-ce4c-b7b8-1643a1b5f176"
 }
