@@ -270,7 +270,10 @@ while [ $HTTP_STATUS -ne 200 ]; do
   fi
 done
 echo "==> Bootstrapping Nomad ACLs"
-echo "${nomad_token}" | nomad acl bootstrap -initial-management-token -
+NOMAD_BOOTSTRAP_OUTPUT=$(nomad acl bootstrap)
+NOMAD_MANAGEMENT_TOKEN=$(echo "$NOMAD_BOOTSTRAP_OUTPUT" | grep "Secret ID" | awk '{print $4}')
+echo "==> Nomad Management Token: $NOMAD_MANAGEMENT_TOKEN"
+echo "$NOMAD_MANAGEMENT_TOKEN" > /tmp/nomad-management-token
 %{ endif }
 
 echo "==> HashiStack server configuration complete: ${node_name}"

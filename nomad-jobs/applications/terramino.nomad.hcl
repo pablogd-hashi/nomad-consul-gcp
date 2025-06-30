@@ -2,6 +2,11 @@ job "terramino" {
   datacenters = ["dc1"]
   type = "service"
 
+  constraint {
+      attribute = "\${node.class}"
+      value     = "server"  # Force to run on servers
+    }
+
   group "terramino" {
     count = 1
 
