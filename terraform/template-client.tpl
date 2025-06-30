@@ -171,6 +171,11 @@ consul {
 
 client {
   enabled = true
+  server_join {
+    retry_join = ["provider=gce project_name=${gcp_project} tag_value=${tag} zone_pattern=\"${zone}-[a-z]\""]
+    retry_max = 3
+    retry_interval = "15s"
+  }
 }
 EOF
 

@@ -24,6 +24,32 @@ output "nomad_token" {
   sensitive   = true
 }
 
+# 🖥️ SERVER IPs
+output "server_ips" {
+  description = "All Nomad/Consul server IP addresses"
+  value = {
+    for i, server in google_compute_instance.nomad_servers :
+    "server-${i + 1}" => {
+      public_ip  = server.network_interface[0].access_config[0].nat_ip
+      private_ip = server.network_interface[0].network_ip
+      ssh_command = "ssh debian@${server.network_interface[0].access_config[0].nat_ip}"
+    }
+  }
+}
+
+# 🖥️ CLIENT IPs  
+output "client_ips" {
+  description = "All Nomad client IP addresses"
+  value = {
+    for i, client in google_compute_instance.nomad_clients :
+    "client-${i + 1}" => {
+      public_ip  = client.network_interface[0].access_config[0].nat_ip
+      private_ip = client.network_interface[0].network_ip
+      ssh_command = "ssh debian@${client.network_interface[0].access_config[0].nat_ip}"
+    }
+  }
+}
+
 # 🎯 APPS URL (when deployed)
 output "apps_url" {
   description = "Application URLs (after deploying apps)"
