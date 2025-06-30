@@ -155,27 +155,32 @@ ports {
 }
 EOF
 
-# Nomad server configuration
-echo "==> Generating Nomad configuration"
+# ----------------------------------
+echo "==> Generating Nomad configs"
+
 sudo tee $NOMAD_DIR/nomad.hcl > /dev/null <<EOF
 datacenter = "$DC"
 data_dir = "/opt/nomad"
-acl {
+acl  {
   enabled = true
 }
 consul {
   token = "${bootstrap_token}"
   enabled = true
+
   service_identity {
     aud = ["consul.io"]
     ttl = "1h"
   }
+
   task_identity {
     aud = ["consul.io"]
     ttl = "1h"
   }
 }
+EOF
 
+sudo tee $NOMAD_DIR/server.hcl > /dev/null <<EOF
 server {
   enabled = true
   bootstrap_expect = 3
@@ -184,10 +189,16 @@ server {
   }
   license_path = "$NOMAD_DIR/license.hclic"
 }
+EOF
 
+sudo tee $NOMAD_DIR/client.hcl > /dev/null <<EOF
 client {
   enabled = false
 }
+EOF
+
+sudo tee $NOMAD_DIR/nomad_bootstrap > /dev/null <<EOF
+${nomad_token}
 EOF
 
 # Create systemd services
@@ -253,10 +264,9 @@ sudo systemctl start consul
 sleep 10
 sudo systemctl start nomad
 
-# Bootstrap Nomad ACLs on last server
+# We select the last node as the Nomad bootstrapper
 %{ if nomad_bootstrapper }
-echo "==> Bootstrapping Nomad ACLs..."
-sleep 30
+# But wait for the Nomad leader to be elected
 HTTP_STATUS=$(curl -s -o /dev/null -w "%%{http_code}" http://localhost:4646/v1/status/leader)
 counter=0
 while [ $HTTP_STATUS -ne 200 ]; do
@@ -269,11 +279,9 @@ while [ $HTTP_STATUS -ne 200 ]; do
     break
   fi
 done
-echo "==> Bootstrapping Nomad ACLs"
-NOMAD_BOOTSTRAP_OUTPUT=$(nomad acl bootstrap)
-NOMAD_MANAGEMENT_TOKEN=$(echo "$NOMAD_BOOTSTRAP_OUTPUT" | grep "Secret ID" | awk '{print $4}')
-echo "==> Nomad Management Token: $NOMAD_MANAGEMENT_TOKEN"
-echo "$NOMAD_MANAGEMENT_TOKEN" > /tmp/nomad-management-token
+echo "==> Bootstrap Nomad..."
+# sleep 20
+nomad acl bootstrap $NOMAD_DIR/nomad_bootstrap
 %{ endif }
 
 echo "==> HashiStack server configuration complete: ${node_name}"

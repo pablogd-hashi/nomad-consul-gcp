@@ -149,26 +149,38 @@ ports {
 }
 EOF
 
-# Nomad client configuration
-echo "==> Generating Nomad configuration"
+# ----------------------------------
+echo "==> Generating Nomad configs"
+
 sudo tee $NOMAD_DIR/nomad.hcl > /dev/null <<EOF
 datacenter = "$DC"
 data_dir = "/opt/nomad"
-acl {
+acl  {
   enabled = true
 }
 consul {
   token = "${bootstrap_token}"
+  enabled = true
+
   service_identity {
     aud = ["consul.io"]
     ttl = "1h"
   }
+
   task_identity {
     aud = ["consul.io"]
     ttl = "1h"
   }
 }
+EOF
 
+sudo tee $NOMAD_DIR/server.hcl > /dev/null <<EOF
+server {
+  enabled = false
+}
+EOF
+
+sudo tee $NOMAD_DIR/client.hcl > /dev/null <<EOF
 client {
   enabled = true
   server_join {
