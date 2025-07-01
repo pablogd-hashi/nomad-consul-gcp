@@ -54,7 +54,8 @@ output "client_ips" {
 output "apps_url" {
   description = "Application URLs (after deploying apps)"
   value = {
-    terramino  = "http://${google_compute_instance.nomad_clients[0].network_interface[0].access_config[0].nat_ip}:8080"
+    traefik    = "http://${google_compute_instance.nomad_clients[0].network_interface[0].access_config[0].nat_ip}:8080"
+    terramino  = "http://${google_compute_instance.nomad_clients[0].network_interface[0].access_config[0].nat_ip}:8101"
     grafana    = "http://${google_compute_instance.nomad_clients[0].network_interface[0].access_config[0].nat_ip}:3000" 
     prometheus = "http://${google_compute_instance.nomad_clients[0].network_interface[0].access_config[0].nat_ip}:9090"
   }
