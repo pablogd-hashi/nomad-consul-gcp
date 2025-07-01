@@ -67,5 +67,17 @@ output "quick_access" {
     consul_token_cmd = "terraform output -raw consul_token"
     nomad_token_cmd  = "terraform output -raw nomad_token"
     all_urls_cmd     = "terraform output"
+    eval_vars_cmd    = "eval $(terraform output -raw eval_vars)"
   }
+}
+
+# 🔧 ENVIRONMENT VARIABLES
+output "eval_vars" {
+  description = "Run: eval $(terraform output -raw eval_vars) to set all environment variables"
+  value = <<EOF
+export CONSUL_HTTP_ADDR="http://${google_compute_instance.nomad_servers[0].network_interface[0].access_config[0].nat_ip}:8500"
+export CONSUL_HTTP_TOKEN="${random_uuid.consul_master_token.result}"
+export NOMAD_ADDR="http://${google_compute_instance.nomad_servers[0].network_interface[0].access_config[0].nat_ip}:4646"
+export NOMAD_TOKEN="${random_uuid.nomad_server_token.result}"
+EOF
 }
