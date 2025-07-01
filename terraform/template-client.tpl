@@ -58,13 +58,17 @@ log_level = "DEBUG"
 tls {
    defaults {
       ca_file = "$CONSUL_DIR/tls/consul-agent-ca.pem"
-
       verify_incoming = false
       verify_outgoing = true
+      verify_server_hostname = false
    }
    internal_rpc {
       verify_server_hostname = false
    }
+}
+
+auto_encrypt {
+  tls = true
 }
 
 
@@ -114,6 +118,15 @@ ports {
   grpc_tls = 8503
 }
 
+connect {
+  enabled = true
+}
+
+telemetry {
+  prometheus_retention_time = "30s"
+  disable_hostname = true
+}
+
 EOF
 
 
@@ -140,6 +153,11 @@ LimitNOFILE=65536
 [Install]
 WantedBy=multi-user.target
 EOF
+
+# ---- Preparing certificates ----
+echo "==> Adding CA certificate for clients"
+sudo mkdir -p "$CONSUL_DIR"/tls
+echo "${consul_ca_cert}" | sudo tee "$CONSUL_DIR"/tls/consul-agent-ca.pem > /dev/null
 
 # Let's set some permissions to read certificates from Consul
 echo "==> Changing permissions for Consul"
@@ -188,7 +206,18 @@ data_dir = "/opt/nomad"
 acl  {
   enabled = true
 }
+telemetry {
+  collection_interval = "1s"
+  disable_hostname = true
+  prometheus_metrics = true
+  publish_allocation_metrics = true
+  publish_node_metrics = true
+}
+
 consul {
+  address = "127.0.0.1:8500"
+  grpc_address = "127.0.0.1:8502"
+  enabled = true
   token = "${bootstrap_token}"
   
   service_identity {
@@ -200,7 +229,6 @@ consul {
     aud = ["consul.io"]
     ttl = "1h"
   }
-  
 }
 
 EOF
@@ -209,6 +237,7 @@ EOF
 sudo tee $NOMAD_DIR/client.hcl > /dev/null <<EOF
 client {
   enabled = true
+  servers = ["provider=gce project_name=${gcp_project} tag_value=${tag}"]
 }
 EOF
 
@@ -258,3 +287,31 @@ OOMScoreAdjust=-1000
 [Install]
 WantedBy=multi-user.target
 EOF
+
+
+# Let's set some permissions to read certificates from Nomad
+echo "==> Changing permissions for Nomad"
+sudo chown -R nomad:nomad "$NOMAD_DIR"
+
+# INIT SERVICES
+
+echo "==> Starting Consul..."
+sudo systemctl enable consul
+sudo systemctl start consul
+
+# Wait for consul to be ready
+echo "==> Waiting for Consul to be ready..."
+export CONSUL_HTTP_ADDR=http://127.0.0.1:8500
+export CONSUL_HTTP_TOKEN="${bootstrap_token}"
+for i in {1..30}; do
+  if consul catalog services >/dev/null 2>&1; then
+    echo "Consul is ready"
+    break
+  fi
+  echo "Waiting for Consul... ($i/30)"
+  sleep 10
+done
+
+echo "==> Starting Nomad..."
+sudo systemctl enable nomad
+sudo systemctl start nomad

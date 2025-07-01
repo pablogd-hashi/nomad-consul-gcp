@@ -40,7 +40,9 @@ resource "google_compute_instance" "nomad_servers" {
       zone = var.region,
       node_name = "server-${count.index}",
       nomad_token = random_uuid.nomad_server_token.result,
-      nomad_bootstrapper = count.index == 2 ? true : false
+      nomad_bootstrapper = count.index == 2 ? true : false,
+      consul_ca_cert = tls_self_signed_cert.ca.cert_pem,
+      consul_ca_key = tls_private_key.ca.private_key_pem
     })
   }
 
