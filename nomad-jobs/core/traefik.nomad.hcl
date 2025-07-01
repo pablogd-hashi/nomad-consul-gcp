@@ -16,8 +16,9 @@ job "traefik" {
 
     service {
       name = "traefik"
+      tags = ["loadbalancer", "proxy"]
       port = "http"
-      
+
       check {
         name     = "alive"
         type     = "http"
@@ -40,10 +41,6 @@ job "traefik" {
           "--api.insecure=true",
           "--entrypoints.web.address=:80",
           "--entrypoints.traefik.address=:8080",
-          "--providers.consul.endpoints=127.0.0.1:8500",
-          "--providers.consulcatalog.prefix=traefik",
-          "--providers.consulcatalog.exposedbydefault=false",
-          "--providers.consulcatalog.endpoints=127.0.0.1:8500",
           "--ping=true"
         ]
       }
