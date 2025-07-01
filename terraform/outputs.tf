@@ -50,6 +50,29 @@ output "client_ips" {
   }
 }
 
+# Legacy output names for backward compatibility
+output "consul_servers" {
+  description = "Consul server IPs (legacy name)"
+  value = {
+    for i, server in google_compute_instance.consul_servers :
+    "server-${i + 1}" => {
+      public_ip  = server.network_interface[0].access_config[0].nat_ip
+      private_ip = server.network_interface[0].network_ip
+    }
+  }
+}
+
+output "nomad_clients" {
+  description = "Nomad client IPs (legacy name)" 
+  value = {
+    for i, client in google_compute_instance.nomad_clients :
+    "client-${i + 1}" => {
+      public_ip  = client.network_interface[0].access_config[0].nat_ip
+      private_ip = client.network_interface[0].network_ip
+    }
+  }
+}
+
 # 🎯 APPS URL (IP-based)
 output "apps_url" {
   description = "Application URLs (after deploying apps)"

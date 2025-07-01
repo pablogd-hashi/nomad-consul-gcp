@@ -129,7 +129,7 @@ telemetry {
   disable_hostname = true
 }
 
-service {
+services {
   name = "nomad-client"
   tags = ["nomad-client", "hashistack"]
   port = 4646

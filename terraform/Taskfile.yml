@@ -102,7 +102,17 @@ tasks:
       - task: status
 
   deploy-all:
-    desc: Deploy everything (Infrastructure + Core + Monitoring + Apps)
+    desc: Deploy everything (Infrastructure + Core + Monitoring + Demo Apps)
+    cmds:
+      - task: terraform-apply
+      - sleep 30
+      - task: deploy-core
+      - task: deploy-monitoring
+      - task: deploy-demo
+      - task: status
+
+  deploy-with-apps:
+    desc: Deploy with monitoring and terramino app
     cmds:
       - task: terraform-apply
       - sleep 30
@@ -128,12 +138,15 @@ tasks:
         while [ $elapsed -lt $timeout ]; do
           if eval $(terraform output -raw eval_vars) && nomad job status {{.SERVICE}} 2>/dev/null | grep -q "Status.*running"; then
             echo "✅ {{.SERVICE}} is running"
-            break
+            exit 0
           fi
           echo "⏳ Still waiting for {{.SERVICE}}... ($elapsed/$timeout seconds)"
           sleep 10
           elapsed=$((elapsed + 10))
         done
+        echo "❌ Timeout waiting for {{.SERVICE}} to start"
+        eval $(terraform output -raw eval_vars) && nomad job status {{.SERVICE}} || echo "Service not found"
+        exit 1
 
   # Status and management
   status:

@@ -138,7 +138,7 @@ telemetry {
   disable_hostname = true
 }
 
-service {
+services {
   name = "nomad-server"
   tags = ["nomad-server", "hashistack"]
   port = 4646
@@ -148,7 +148,7 @@ service {
   }
 }
 
-service {
+services {
   name = "consul-server"
   tags = ["consul-server", "hashistack"]
   port = 8500
