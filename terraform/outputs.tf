@@ -63,15 +63,16 @@ output "apps_url" {
 
 # 🌐 DNS URLs (Much easier!)
 output "dns_urls" {
-  description = "DNS-based URLs for services"
-  value = {
-    grafana    = "http://${google_dns_record_set.grafana.name}:3000"
-    prometheus = "http://${google_dns_record_set.prometheus.name}:9090"
-    traefik    = "http://${google_dns_record_set.traefik.name}:8080"
-    demo       = "http://${google_dns_record_set.demo.name}:8101"
-    consul     = "http://${google_dns_record_set.consul.name}:8500"
-    nomad      = "http://${google_dns_record_set.nomad.name}:4646"
-  }
+  description = "DNS-based URLs for services (only if DNS zone is configured)"
+  value = var.dns_zone_name != "" ? {
+    grafana    = "http://${google_dns_record_set.grafana[0].name}:3000"
+    prometheus = "http://${google_dns_record_set.prometheus[0].name}:9090"
+    traefik    = "http://${google_dns_record_set.traefik[0].name}:8080"
+    demo       = "http://${google_dns_record_set.demo[0].name}/frontend"
+    consul     = "http://${google_dns_record_set.consul[0].name}:8500"
+    nomad      = "http://${google_dns_record_set.nomad[0].name}:4646"
+    terramino  = "http://${google_dns_record_set.terramino[0].name}"
+  } : {}
 }
 
 # 📋 QUICK ACCESS COMMANDS

@@ -59,6 +59,15 @@ resource "google_dns_record_set" "prometheus" {
   rrdatas      = [google_compute_instance.nomad_clients[0].network_interface[0].access_config[0].nat_ip]
 }
 
+resource "google_dns_record_set" "demo" {
+  count        = var.dns_zone_name != "" ? 1 : 0
+  name         = "demo-${var.cluster_name}.${data.google_dns_managed_zone.dns_zone[0].dns_name}"
+  managed_zone = data.google_dns_managed_zone.dns_zone[0].name
+  type         = "A"
+  ttl          = 300
+  rrdatas      = [google_compute_instance.nomad_clients[0].network_interface[0].access_config[0].nat_ip]
+}
+
 # Static IP for load balancer
 resource "google_compute_global_address" "hashistack_lb_ip" {
   name = "hashistack-lb-ip"

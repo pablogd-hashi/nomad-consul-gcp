@@ -60,6 +60,29 @@ tasks:
         vars: {SERVICE: terramino}
       - echo "✅ Applications deployed"
 
+  deploy-demo:
+    desc: Deploy demo fake services
+    cmds:
+      - echo "🎮 Deploying demo services..."
+      - eval $(terraform output -raw eval_vars) && nomad job run {{.JOBS_DIR}}/applications/demo-fake-service/backend.nomad.hcl
+      - task: wait-for-service
+        vars: {SERVICE: backend-services}
+      - eval $(terraform output -raw eval_vars) && nomad job run {{.JOBS_DIR}}/applications/demo-fake-service/frontend.nomad.hcl
+      - task: wait-for-service
+        vars: {SERVICE: front-service}
+      - echo "✅ Demo services deployed"
+
+  restart-traefik:
+    desc: Restart Traefik with updated configuration
+    cmds:
+      - echo "🔄 Restarting Traefik..."
+      - eval $(terraform output -raw eval_vars) && nomad job stop traefik || true
+      - sleep 5
+      - eval $(terraform output -raw eval_vars) && nomad job run {{.JOBS_DIR}}/core/traefik.nomad.hcl
+      - task: wait-for-service
+        vars: {SERVICE: traefik}
+      - echo "✅ Traefik restarted with new configuration"
+
   # Main deployment workflows
   deploy-minimal:
     desc: Deploy minimal stack (Infrastructure + Traefik only)
@@ -133,14 +156,15 @@ tasks:
     cmds:
       - echo "🛑 Stopping all services..."
       - eval $(terraform output -raw eval_vars) && nomad job stop terramino || true
+      - eval $(terraform output -raw eval_vars) && nomad job stop front-service || true
+      - eval $(terraform output -raw eval_vars) && nomad job stop backend-services || true
       - eval $(terraform output -raw eval_vars) && nomad job stop grafana || true
       - eval $(terraform output -raw eval_vars) && nomad job stop prometheus || true
       - eval $(terraform output -raw eval_vars) && nomad job stop traefik || true
       - echo "✅ All services stopped"
 
-  # Development helpers
   logs:
-    desc: Show logs for a specific job (Usage: task logs JOB=jobname)
+    desc: Show logs for a specific job (Usage - task logs JOB=jobname)
     cmds:
       - |
         if [ -z "{{.JOB}}" ]; then
@@ -152,7 +176,7 @@ tasks:
         fi
 
   restart:
-    desc: Restart a specific job (Usage: task restart JOB=jobname)
+    desc: Restart a specific job (Usage - task restart JOB=jobname)
     cmds:
       - |
         if [ -z "{{.JOB}}" ]; then
