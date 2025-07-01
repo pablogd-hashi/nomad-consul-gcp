@@ -36,6 +36,7 @@ resource "google_compute_instance" "nomad_clients" {
       consul_license = var.consul_license,
       nomad_license = var.nomad_license,
       bootstrap_token = random_uuid.consul_master_token.result,
+      consul_encrypt_key = random_id.consul_encrypt.b64_std,
       zone = var.region,
       node_name = "client-${count.index}",
       partition = "default"

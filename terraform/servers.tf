@@ -36,6 +36,7 @@ resource "google_compute_instance" "nomad_servers" {
       consul_license = var.consul_license,
       nomad_license = var.nomad_license,
       bootstrap_token = random_uuid.consul_master_token.result,
+      consul_encrypt_key = random_id.consul_encrypt.b64_std,
       zone = var.region,
       node_name = "server-${count.index}",
       nomad_token = random_uuid.nomad_server_token.result,
