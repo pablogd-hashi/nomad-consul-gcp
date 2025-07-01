@@ -52,16 +52,13 @@ tasks:
 
   # Application deployment
   deploy-apps:
-    desc: Deploy demo applications
+    desc: Deploy applications
     cmds:
-      - echo "🎮 Deploying demo applications..."
-      - eval $(terraform output -raw eval_vars) && nomad job run demo-backend.nomad.hcl
+      - echo "🎮 Deploying applications..."
+      - eval $(terraform output -raw eval_vars) && nomad job run {{.JOBS_DIR}}/applications/terramino.nomad.hcl
       - task: wait-for-service
-        vars: {SERVICE: demo-backend}
-      - eval $(terraform output -raw eval_vars) && nomad job run demo-frontend.nomad.hcl
-      - task: wait-for-service
-        vars: {SERVICE: demo-frontend}
-      - echo "✅ Demo applications deployed"
+        vars: {SERVICE: terramino}
+      - echo "✅ Applications deployed"
 
   # Main deployment workflows
   deploy-minimal:
@@ -135,8 +132,7 @@ tasks:
     desc: Stop all Nomad jobs
     cmds:
       - echo "🛑 Stopping all services..."
-      - eval $(terraform output -raw eval_vars) && nomad job stop demo-frontend || true
-      - eval $(terraform output -raw eval_vars) && nomad job stop demo-backend || true
+      - eval $(terraform output -raw eval_vars) && nomad job stop terramino || true
       - eval $(terraform output -raw eval_vars) && nomad job stop grafana || true
       - eval $(terraform output -raw eval_vars) && nomad job stop prometheus || true
       - eval $(terraform output -raw eval_vars) && nomad job stop traefik || true

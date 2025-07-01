@@ -75,8 +75,8 @@ variable "domain_name" {
   default     = "hashistack.local"
 }
 
-variable "dns_zone" {
-  description = "DNS zone for domain management"
+variable "dns_zone_name" {
+  description = "Name of the existing GCP DNS managed zone (without domain)"
   type        = string
   default     = ""
 }

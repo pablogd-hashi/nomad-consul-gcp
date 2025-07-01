@@ -24,8 +24,13 @@ nomad_version  = "1.7.2+ent"
 consul_datacenter = "dc1"
 nomad_datacenter  = "dc1"
 
-# Domain Configuration
-domain_name = "hashistack.local"
+# DNS Configuration (optional)
+domain_name     = "example.com"
+dns_zone_name   = ""  # Set to your GCP DNS zone name if you want DNS records
+cluster_name    = "hashistack"
+
+# GCP Service Account
+gcp_sa = "your-service-account@your-project.iam.gserviceaccount.com"
 
 # Security Configuration
 enable_acls = true
@@ -37,3 +42,6 @@ nomad_log_level  = "INFO"
 
 # SSH Configuration
 ssh_public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC... your-ssh-public-key-here"
+
+# Image Configuration (set to false for quick setup with base Ubuntu images)
+use_hcp_packer = false

@@ -48,6 +48,8 @@ node_meta = {
   hostname = "$(hostname)"
   gcp_instance = "$(curl "http://metadata.google.internal/computeMetadata/v1/instance/name" -H "Metadata-Flavor: Google")"
   gcp_zone = "$(curl -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/zone" | awk -F / '{print $NF}')"
+  type = "client"
+  nomad_client = "true"
 }
 encrypt = "${consul_encrypt_key}"
 retry_join = ["provider=gce project_name=${gcp_project} tag_value=${tag} zone_pattern=\"${zone}-[a-z]\""]
@@ -125,6 +127,16 @@ connect {
 telemetry {
   prometheus_retention_time = "30s"
   disable_hostname = true
+}
+
+service {
+  name = "nomad-client"
+  tags = ["nomad-client", "hashistack"]
+  port = 4646
+  check {
+    http = "http://localhost:4646/v1/agent/health"
+    interval = "10s"
+  }
 }
 
 EOF
