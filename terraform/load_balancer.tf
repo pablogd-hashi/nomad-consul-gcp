@@ -1,52 +1,59 @@
-# DNS Zone (using your working pattern)
-data "google_dns_managed_zone" "doormat_dns_zone" {
-  name = "doormat-accountid"
+# DNS Zone (conditionally created if dns_zone_name is provided)
+data "google_dns_managed_zone" "dns_zone" {
+  count = var.dns_zone_name != "" ? 1 : 0
+  name  = var.dns_zone_name
 }
 
-# DNS records for applications
-resource "google_dns_record_set" "demo" {
-  name         = "demo.${data.google_dns_managed_zone.doormat_dns_zone.dns_name}"
-  managed_zone = data.google_dns_managed_zone.doormat_dns_zone.name
+# DNS records for applications (only if DNS zone is provided)
+resource "google_dns_record_set" "terramino" {
+  count        = var.dns_zone_name != "" ? 1 : 0
+  name         = "terramino-${var.cluster_name}.${data.google_dns_managed_zone.dns_zone[0].dns_name}"
+  managed_zone = data.google_dns_managed_zone.dns_zone[0].name
   type         = "A"
   ttl          = 300
   rrdatas      = [google_compute_instance.nomad_clients[0].network_interface[0].access_config[0].nat_ip]
 }
 
 resource "google_dns_record_set" "traefik" {
-  name         = "traefik.${data.google_dns_managed_zone.doormat_dns_zone.dns_name}"
-  managed_zone = data.google_dns_managed_zone.doormat_dns_zone.name
+  count        = var.dns_zone_name != "" ? 1 : 0
+  name         = "traefik-${var.cluster_name}.${data.google_dns_managed_zone.dns_zone[0].dns_name}"
+  managed_zone = data.google_dns_managed_zone.dns_zone[0].name
   type         = "A"
   ttl          = 300
   rrdatas      = [google_compute_instance.nomad_clients[0].network_interface[0].access_config[0].nat_ip]
 }
 
 resource "google_dns_record_set" "consul" {
-  name         = "consul.${data.google_dns_managed_zone.doormat_dns_zone.dns_name}"
-  managed_zone = data.google_dns_managed_zone.doormat_dns_zone.name
+  count        = var.dns_zone_name != "" ? 1 : 0
+  name         = "consul-${var.cluster_name}.${data.google_dns_managed_zone.dns_zone[0].dns_name}"
+  managed_zone = data.google_dns_managed_zone.dns_zone[0].name
   type         = "A"
   ttl          = 300
   rrdatas      = [google_compute_instance.nomad_servers[0].network_interface[0].access_config[0].nat_ip]
 }
 
 resource "google_dns_record_set" "nomad" {
-  name         = "nomad.${data.google_dns_managed_zone.doormat_dns_zone.dns_name}"
-  managed_zone = data.google_dns_managed_zone.doormat_dns_zone.name
+  count        = var.dns_zone_name != "" ? 1 : 0
+  name         = "nomad-${var.cluster_name}.${data.google_dns_managed_zone.dns_zone[0].dns_name}"
+  managed_zone = data.google_dns_managed_zone.dns_zone[0].name
   type         = "A"
   ttl          = 300
   rrdatas      = [google_compute_instance.nomad_servers[0].network_interface[0].access_config[0].nat_ip]
 }
 
 resource "google_dns_record_set" "grafana" {
-  name         = "grafana.${data.google_dns_managed_zone.doormat_dns_zone.dns_name}"
-  managed_zone = data.google_dns_managed_zone.doormat_dns_zone.name
+  count        = var.dns_zone_name != "" ? 1 : 0
+  name         = "grafana-${var.cluster_name}.${data.google_dns_managed_zone.dns_zone[0].dns_name}"
+  managed_zone = data.google_dns_managed_zone.dns_zone[0].name
   type         = "A"
   ttl          = 300
   rrdatas      = [google_compute_instance.nomad_clients[1].network_interface[0].access_config[0].nat_ip]
 }
 
 resource "google_dns_record_set" "prometheus" {
-  name         = "prometheus.${data.google_dns_managed_zone.doormat_dns_zone.dns_name}"
-  managed_zone = data.google_dns_managed_zone.doormat_dns_zone.name
+  count        = var.dns_zone_name != "" ? 1 : 0
+  name         = "prometheus-${var.cluster_name}.${data.google_dns_managed_zone.dns_zone[0].dns_name}"
+  managed_zone = data.google_dns_managed_zone.dns_zone[0].name
   type         = "A"
   ttl          = 300
   rrdatas      = [google_compute_instance.nomad_clients[0].network_interface[0].access_config[0].nat_ip]
