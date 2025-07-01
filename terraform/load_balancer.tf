@@ -1,38 +1,55 @@
 # DNS Zone (using your working pattern)
 data "google_dns_managed_zone" "doormat_dns_zone" {
-  count = var.dns_zone != "" ? 1 : 0
-  name  = var.dns_zone
+  name = "doormat-accountid"
 }
 
 # DNS records for applications
-resource "google_dns_record_set" "terramino" {
-  count = var.dns_zone != "" ? 1 : 0
-  
-  name         = "terramino-${var.cluster_name}.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
-  managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
+resource "google_dns_record_set" "demo" {
+  name         = "demo.${data.google_dns_managed_zone.doormat_dns_zone.dns_name}"
+  managed_zone = data.google_dns_managed_zone.doormat_dns_zone.name
   type         = "A"
   ttl          = 300
-  rrdatas      = [google_compute_global_address.hashistack_lb_ip.address]
+  rrdatas      = [google_compute_instance.nomad_clients[0].network_interface[0].access_config[0].nat_ip]
+}
+
+resource "google_dns_record_set" "traefik" {
+  name         = "traefik.${data.google_dns_managed_zone.doormat_dns_zone.dns_name}"
+  managed_zone = data.google_dns_managed_zone.doormat_dns_zone.name
+  type         = "A"
+  ttl          = 300
+  rrdatas      = [google_compute_instance.nomad_clients[0].network_interface[0].access_config[0].nat_ip]
+}
+
+resource "google_dns_record_set" "consul" {
+  name         = "consul.${data.google_dns_managed_zone.doormat_dns_zone.dns_name}"
+  managed_zone = data.google_dns_managed_zone.doormat_dns_zone.name
+  type         = "A"
+  ttl          = 300
+  rrdatas      = [google_compute_instance.nomad_servers[0].network_interface[0].access_config[0].nat_ip]
+}
+
+resource "google_dns_record_set" "nomad" {
+  name         = "nomad.${data.google_dns_managed_zone.doormat_dns_zone.dns_name}"
+  managed_zone = data.google_dns_managed_zone.doormat_dns_zone.name
+  type         = "A"
+  ttl          = 300
+  rrdatas      = [google_compute_instance.nomad_servers[0].network_interface[0].access_config[0].nat_ip]
 }
 
 resource "google_dns_record_set" "grafana" {
-  count = var.dns_zone != "" ? 1 : 0
-  
-  name         = "grafana-${var.cluster_name}.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
-  managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
+  name         = "grafana.${data.google_dns_managed_zone.doormat_dns_zone.dns_name}"
+  managed_zone = data.google_dns_managed_zone.doormat_dns_zone.name
   type         = "A"
   ttl          = 300
-  rrdatas      = [google_compute_global_address.hashistack_lb_ip.address]
+  rrdatas      = [google_compute_instance.nomad_clients[1].network_interface[0].access_config[0].nat_ip]
 }
 
 resource "google_dns_record_set" "prometheus" {
-  count = var.dns_zone != "" ? 1 : 0
-  
-  name         = "prometheus-${var.cluster_name}.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
-  managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
+  name         = "prometheus.${data.google_dns_managed_zone.doormat_dns_zone.dns_name}"
+  managed_zone = data.google_dns_managed_zone.doormat_dns_zone.name
   type         = "A"
   ttl          = 300
-  rrdatas      = [google_compute_global_address.hashistack_lb_ip.address]
+  rrdatas      = [google_compute_instance.nomad_clients[0].network_interface[0].access_config[0].nat_ip]
 }
 
 # Static IP for load balancer

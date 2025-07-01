@@ -50,14 +50,27 @@ output "client_ips" {
   }
 }
 
-# 🎯 APPS URL (when deployed)
+# 🎯 APPS URL (IP-based)
 output "apps_url" {
   description = "Application URLs (after deploying apps)"
   value = {
     traefik    = "http://${google_compute_instance.nomad_clients[0].network_interface[0].access_config[0].nat_ip}:8080"
-    terramino  = "http://${google_compute_instance.nomad_clients[0].network_interface[0].access_config[0].nat_ip}:8101"
-    grafana    = "http://${google_compute_instance.nomad_clients[0].network_interface[0].access_config[0].nat_ip}:3000" 
+    demo       = "http://${google_compute_instance.nomad_clients[0].network_interface[0].access_config[0].nat_ip}:8101"
+    grafana    = "http://${google_compute_instance.nomad_clients[1].network_interface[0].access_config[0].nat_ip}:3000" 
     prometheus = "http://${google_compute_instance.nomad_clients[0].network_interface[0].access_config[0].nat_ip}:9090"
+  }
+}
+
+# 🌐 DNS URLs (Much easier!)
+output "dns_urls" {
+  description = "DNS-based URLs for services"
+  value = {
+    grafana    = "http://${google_dns_record_set.grafana.name}:3000"
+    prometheus = "http://${google_dns_record_set.prometheus.name}:9090"
+    traefik    = "http://${google_dns_record_set.traefik.name}:8080"
+    demo       = "http://${google_dns_record_set.demo.name}:8101"
+    consul     = "http://${google_dns_record_set.consul.name}:8500"
+    nomad      = "http://${google_dns_record_set.nomad.name}:4646"
   }
 }
 
