@@ -1,182 +1,119 @@
 version: '3'
 
-vars:
-  TERRAFORM_DIR: terraform
-  PACKER_DIR: packer
-  JOBS_DIR: nomad-jobs
-  SCRIPTS_DIR: scripts
-
-env:
-  TF_IN_AUTOMATION: "true"
-
 tasks:
-  default:
-    desc: "🚀 Main Commands"
-    silent: true
+  init:
+    desc: Initialize Terraform
     cmds:
-      - echo "🚀 HashiStack Deployment Tasks"
-      - echo "=============================="
-      - echo ""
-      - echo "🏗️  Infrastructure:"
-      - echo "   task provision    - Deploy all infrastructure"
-      - echo "   task destroy      - Destroy everything"
-      - echo ""
-      - echo "📊 Applications:"
-      - echo "   task observability - Deploy monitoring (Grafana, Prometheus)"
-      - echo "   task apps          - Deploy applications (Terramino, etc)"
-      - echo ""
-      - echo "🖼️  Images:"
-      - echo "   task build-server  - Build server image with Packer"
-      - echo "   task build-client  - Build client image with Packer"
-      - echo ""
-      - echo "ℹ️  Info:"
-      - echo "   task tokens        - Get access tokens"
-      - echo "   task status        - Check system status"
-      - echo "   task urls          - Get all URLs"
-
-  # Main Infrastructure Commands
-  provision:
-    desc: "🏗️ Deploy all infrastructure (servers, clients, networking)"
-    dir: "{{.TERRAFORM_DIR}}"
-    cmds:
-      - echo "🏗️ Provisioning HashiStack infrastructure..."
       - terraform init
+
+  plan:
+    desc: Run terraform plan
+    cmds:
       - terraform plan
-      - terraform apply
-      - echo ""
-      - echo "✅ Infrastructure provisioned!"
-      - echo "📋 Run 'task tokens' to get access credentials"
+
+  apply:
+    desc: Apply the Terraform configuration
+    cmds:
+      - terraform apply -auto-approve
 
   destroy:
-    desc: "💥 Destroy all infrastructure"
-    dir: "{{.TERRAFORM_DIR}}"
-    prompt: "Are you sure you want to destroy ALL infrastructure?"
+    desc: Destroy the Terraform-managed infrastructure
     cmds:
-      - echo "💥 Destroying all infrastructure..."
-      - terraform destroy
-      - echo "✅ Everything destroyed!"
+      - terraform destroy -auto-approve
 
-  # Application Deployment
-  observability:
-    desc: "📊 Deploy monitoring stack (Grafana, Prometheus, Traefik)"
+  all:
+    desc: Run init, plan, and apply
     cmds:
-      - echo "📊 Deploying observability stack..."
-      - task: _wait-nomad
-      - echo "   🚛 Deploying Traefik (Load Balancer)..."
-      - nomad job run {{.JOBS_DIR}}/core/traefik.nomad.hcl
-      - echo "   📈 Deploying Prometheus (Metrics)..."
-      - nomad job run {{.JOBS_DIR}}/core/prometheus.nomad.hcl
-      - echo "   📊 Deploying Grafana (Dashboards)..."
-      - nomad job run {{.JOBS_DIR}}/core/grafana.nomad.hcl
-      - echo ""
-      - echo "✅ Observability stack deployed!"
-      - echo "🌐 Access Grafana at http://server-ip:3000 (admin/admin)"
+      - task: init
+      - task: plan
+      - task: apply
 
-  apps:
-    desc: "🎮 Deploy applications (Terramino demo game)"
+  setup-nomad-consul:
+    desc: Configure workload identity between Nomad and Consul (run in both clusters)
+    dir: consul-nomad-peering
     cmds:
-      - echo "🎮 Deploying applications..."
-      - task: _wait-nomad
-      - echo "   🎯 Deploying Terramino game..."
-      - nomad job run {{.JOBS_DIR}}/applications/terramino.nomad.hcl
-      - echo ""
-      - echo "✅ Applications deployed!"
-      - echo "🎮 Play Terramino at the load balancer URL"
+      - nomad setup consul -y
 
-  # Image Building
-  build-server:
-    desc: "🖼️ Build HashiStack server image with Packer"
-    dir: "{{.PACKER_DIR}}/builds"
-    cmds:
-      - echo "🖼️ Building HashiStack server image..."
-      - packer validate -var-file=../variables/common.pkrvars.hcl hashistack-server.pkr.hcl
-      - packer build -var-file=../variables/common.pkrvars.hcl hashistack-server.pkr.hcl
-      - echo "✅ Server image built and published to HCP Packer!"
-
-  build-client:
-    desc: "🖼️ Build HashiStack client image with Packer"
-    dir: "{{.PACKER_DIR}}/builds"
-    cmds:
-      - echo "🖼️ Building HashiStack client image..."
-      - packer validate -var-file=../variables/common.pkrvars.hcl hashistack-client.pkr.hcl
-      - packer build -var-file=../variables/common.pkrvars.hcl hashistack-client.pkr.hcl
-      - echo "✅ Client image built and published to HCP Packer!"
-
-  # Info Commands
-  tokens:
-    desc: "🔑 Get all authentication tokens"
-    dir: "{{.TERRAFORM_DIR}}"
-    cmds:
-      - echo "🔑 Authentication Tokens"
-      - echo "========================"
-      - echo ""
-      - echo "Consul Master Token:"
-      - terraform output -raw consul_master_token
-      - echo ""
-      - echo "Nomad Server Token:"
-      - terraform output -raw nomad_server_token
-      - echo ""
-      - echo "💻 Quick Setup Commands:"
-      - echo "export CONSUL_HTTP_ADDR=$(terraform output -json consul_ui_urls | jq -r '.[0]')"
-      - echo "export CONSUL_HTTP_TOKEN=$(terraform output -raw consul_master_token)"
-      - echo "export NOMAD_ADDR=$(terraform output -json nomad_ui_urls | jq -r '.[0]')"
-      - echo "export NOMAD_TOKEN=$(terraform output -raw nomad_server_token)"
-
-  urls:
-    desc: "🌐 Get all access URLs"
-    dir: "{{.TERRAFORM_DIR}}"
-    cmds:
-      - echo "🌐 Access URLs"
-      - echo "=============="
-      - echo ""
-      - echo "Consul UI:"
-      - terraform output consul_ui_urls
-      - echo ""
-      - echo "Nomad UI:"
-      - terraform output nomad_ui_urls
-      - echo ""
-      - echo "Applications:"
-      - terraform output application_urls
-
-  status:
-    desc: "📊 Check system status"
-    cmds:
-      - echo "📊 System Status"
-      - echo "================"
-      - echo ""
-      - echo "Nomad Jobs:"
-      - nomad job status || echo "❌ Nomad not accessible (run 'task tokens' to get connection info)"
-      - echo ""
-      - echo "Consul Members:"
-      - consul members || echo "❌ Consul not accessible (run 'task tokens' to get connection info)"
-
-  # Internal helper tasks (hidden from main list)
-  _wait-nomad:
-    internal: true
+  create-namespace:
+    desc: Create Nomad namespace 'ingress' for API Gateway (only in primary cluster)
+    dir: consul-nomad-peering
     cmds:
       - |
-        echo "⏳ Waiting for Nomad to be ready..."
-        max_attempts=30
-        attempt=0
-        while [ $attempt -lt $max_attempts ]; do
-          if nomad server members >/dev/null 2>&1; then
-            echo "✅ Nomad is ready"
-            exit 0
-          fi
-          echo "   Waiting... (attempt $((attempt + 1))/$max_attempts)"
-          sleep 10
-          attempt=$((attempt + 1))
-        done
-        echo "❌ Nomad failed to become ready"
-        echo "💡 Make sure to set environment variables: task tokens"
-        exit 1
+        nomad namespace apply \
+          -description "namespace for Consul API Gateways" \
+          ingress
 
-  _setup-env:
-    internal: true
-    dir: "{{.TERRAFORM_DIR}}"
+  create-binding-rule:
+    desc: Create ACL binding rule for API Gateway (only in primary cluster)
+    dir: consul-nomad-peering
     cmds:
       - |
-        export CONSUL_HTTP_ADDR=$(terraform output -json consul_ui_urls | jq -r '.[0]')
-        export CONSUL_HTTP_TOKEN=$(terraform output -raw consul_master_token)
-        export NOMAD_ADDR=$(terraform output -json nomad_ui_urls | jq -r '.[0]')
-        export NOMAD_TOKEN=$(terraform output -raw nomad_server_token)
+        consul acl binding-rule create \
+          -method 'nomad-workloads' \
+          -description 'Nomad API gateway' \
+          -bind-type 'templated-policy' \
+          -bind-name 'builtin/api-gateway' \
+          -bind-vars 'Name=${value.nomad_job_id}' \
+          -selector '"nomad_service" not in value and value.nomad_namespace==ingress'
+
+  configure-primary-cluster:
+    desc: Full setup for primary cluster (workload identity + namespace + binding rule)
+    cmds:
+      - task: setup-nomad-consul
+      - task: create-namespace
+      - task: create-binding-rule
+
+  deploy-api-gw:
+    desc: Deploy API Gateway job
+    dir: consul-nomad-peering
+    cmds:
+      - nomad job run api-gw.nomad.hcl
+
+  deploy-tgw:
+    desc: Deploy TGW job
+    dir: consul-nomad-peering
+    cmds:
+      - nomad job run tgw.nomad.hcl
+
+  register-httproute:
+    desc: Register HTTPRoute configuration
+    dir: consul-nomad-peering
+    cmds:
+      - consul config write httproute.hcl
+
+  register-listener:
+    desc: Register listener configuration
+    dir: consul-nomad-peering
+    cmds:
+      - consul config write listener.hcl
+
+  deploy-fake-service:
+    desc: Deploy fake service in cluster2
+    dir: consul-nomad-peering/demo-fake-service
+    cmds:
+      - nomad job run fake-service.nomad.hcl
+
+  deploy-all:
+    desc: Deploy all Nomad and Consul workloads
+    cmds:
+      - task: deploy-api-gw
+      - task: deploy-tgw
+      - task: register-httproute
+      - task: register-listener
+      - task: deploy-fake-service
+
+  destroy-all:
+    desc: Stop all Nomad jobs and remove Consul configs
+    dir: consul-nomad-peering
+    cmds:
+      - nomad job stop -purge api-gw || true
+      - nomad job stop -purge tgw || true
+      - nomad job stop -purge fake-service || true
+      - consul config delete -kind httproute -name api-gw || true
+      - consul config delete -kind listener -name api-gw || true
+
+  delete-intentions:
+    desc: Delete all Consul intentions
+    cmds:
+      - consul intention list | tail -n +2 | awk '{print "consul intention delete " $1 " " $3}' | bash
+
