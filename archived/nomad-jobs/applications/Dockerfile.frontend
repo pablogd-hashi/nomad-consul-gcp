@@ -1,0 +1,9 @@
+# Scope package to github repo, not org
+# LABEL org.opencontainers.image.source=https://github.com/ORG/REPO
+
+FROM nginx:alpine
+
+COPY web /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 8081

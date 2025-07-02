@@ -1,134 +1,110 @@
-variable "project_id" {
-  description = "GCP Project ID"
-  type        = string
+variable "gcp_region" {
+  description = "Google Cloud region"
 }
+# variable "gcp_zone" {
+#   description = "Google Cloud region"
+#   validation {
+#     # Validating that zone is within the region
+#     condition     = var.gcp_zone == regex("[a-z]+-[a-z]+[0-1]-[abc]",var.gcp_zone)
+#     error_message = "The GCP zone ${var.gcp_zone} needs to be a valid one."
+#   }
 
-variable "region" {
-  description = "GCP Region"
-  type        = string
-  default     = "us-central1"
+# }
+variable "gcp_zones" {
+  description = "Zones to spread the clients. This is a list of zones"
+  type = list(string)
+  default = ["europe-west1-c"]
+  # Let's do a validation to check that the zones are within the region
+  validation {
+    condition     = alltrue([for zone in var.gcp_zones : contains(regexall("[a-z]+-[a-z]+[0-1]-[a-z]",zone),zone)])
+    error_message = "The GCP zones ${join(",",var.gcp_zones)} needs to be a valid one."
+  }
 }
-
-variable "zone" {
-  description = "GCP Zone"
-  type        = string
-  default     = "us-central1-a"
+variable "gcp_project" {
+  description = "Cloud project"
 }
-
-variable "subnet_cidr" {
-  description = "CIDR block for the subnet"
-  type        = string
-  default     = "10.0.0.0/16"
-}
-
-variable "machine_type_server" {
-  description = "Machine type for Nomad/Consul servers"
-  type        = string
-  default     = "e2-standard-2"
-}
-
-variable "machine_type_client" {
-  description = "Machine type for Nomad clients"
-  type        = string
-  default     = "e2-standard-4"
-}
-
-variable "consul_license" {
-  description = "Consul Enterprise License"
-  type        = string
-  sensitive   = true
-}
-
-variable "nomad_license" {
-  description = "Nomad Enterprise License"
-  type        = string
-  sensitive   = true
-}
-
-variable "consul_version" {
-  description = "Consul version to install"
-  type        = string
-  default     = "1.17.0+ent"
-}
-
-variable "nomad_version" {
-  description = "Nomad version to install"
-  type        = string
-  default     = "1.7.2+ent"
-}
-
-variable "consul_datacenter" {
-  description = "Consul datacenter name"
-  type        = string
-  default     = "dc1"
-}
-
-variable "nomad_datacenter" {
-  description = "Nomad datacenter name"
-  type        = string
-  default     = "dc1"
-}
-
-variable "domain_name" {
-  description = "Domain name for the applications"
-  type        = string
-  default     = "hashistack.local"
-}
-
-variable "dns_zone_name" {
-  description = "Name of the existing GCP DNS managed zone (without domain)"
-  type        = string
-  default     = ""
-}
-
-variable "cluster_name" {
-  description = "Name for the cluster"
-  type        = string
-  default     = "hashistack-terramino"
-}
-
 variable "gcp_sa" {
-  description = "GCP Service Account email"
-  type        = string
+  description = "GCP Service Account to use for scopes"
+}
+variable "gcp_instance" {
+  description = "Machine type for nodes"
+}
+# variable "gcp_zones" {
+#   description = "availability zones"
+#   type = list(string)
+# }
+variable "numnodes" {
+  description = "number of server nodes"
+  default = 3
+}
+variable "numclients" {
+  description = "number of client nodes"
+  default = 2
+}
+variable "cluster_name" {
+  description = "Name of the cluster"
+}
+variable "owner" {
+  description = "Owner of the cluster"
+}
+variable "server" {
+  description = "Prefix for server names"
+  default = "consul-server"
+}
+variable "consul_license" {
+  description = "Consul Enterprise license text"
+}
+variable "nomad_license" {
+  description = "Nomad Enterprise license text"
+}
+variable "tfc_token" {
+  description = "Terraform Cloud token to use for CTS"
+  default = ""
 }
 
-variable "enable_acls" {
-  description = "Enable ACLs for Consul and Nomad"
-  type        = bool
-  default     = true
+variable "consul_bootstrap_token" {
+  description = "Terraform Cloud token to use for CTS"
+  default = "Consu43v3r"
 }
 
-variable "enable_tls" {
-  description = "Enable TLS for Consul and Nomad"
-  type        = bool
-  default     = true
+variable "image_family" {
+  default = "hashistack"
 }
 
-variable "consul_log_level" {
-  description = "Consul log level"
-  type        = string
-  default     = "INFO"
+variable "dns_zone" {
+  description = "An already existing DNS zone in your GCP project"
+  default = null
 }
 
-variable "nomad_log_level" {
-  description = "Nomad log level"
-  type        = string
-  default     = "INFO"
-}
-
-variable "packer_image_channel" {
-  description = "HCP Packer image channel"
-  type        = string
-  default     = "latest"
+variable "consul_partitions" {
+  description = "List of Consul Admin Partitions"
+  type = list(string)
+  default = []
 }
 
 variable "use_hcp_packer" {
-  description = "Use HCP Packer images or fallback to base Ubuntu image"
-  type        = bool
-  default     = true
+  description = "Use HCP Packer to store images"
+  default = false
 }
 
-variable "ssh_public_key" {
-  description = "SSH public key for instance access"
-  type        = string
+variable "hcp_packer_bucket" {
+  description = "Bucket name for HCP Packer"
+  default = "consul-nomad"  
+}
+
+variable "hcp_packer_channel" {
+  description = "Channel for HCP Packer"
+  default = "latest"
+}
+
+variable "hcp_packer_region" {
+  description = "Region for HCP Packer"
+  default = "europe-west1-c"
+}
+variable "hcp_project_id" {
+  description = "HCP Project ID"
+}
+variable "enable_cts" {
+  description = "Set it to true to deploy a node for CTS"
+  default = "false"
 }

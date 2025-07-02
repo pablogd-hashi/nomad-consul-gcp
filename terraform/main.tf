@@ -1,178 +1,400 @@
-provider "google" {
-  project = var.project_id
-  region  = var.region
-  zone    = var.zone
+terraform { 
+  cloud { 
+    
+    organization = "pablogd-hcp-test" 
+
+    workspaces { 
+      name = "consul-nomad-gcp" 
+    } 
+  } 
 }
 
-provider "hcp" {
-  # HCP provider configuration - uses HCP_CLIENT_ID and HCP_CLIENT_SECRET environment variables
+terraform {
+  required_version = ">= 1.0.0"
+  # backend "remote" {
+  # }
 }
 
-# Generate random tokens for demo purposes
-resource "random_uuid" "consul_master_token" {}
-
-resource "random_uuid" "nomad_server_token" {}
-
-resource "random_uuid" "nomad_client_token" {}
-
-resource "random_uuid" "application_token" {}
-
-resource "random_string" "consul_encrypt_key" {
-  length  = 32
-  special = false
+resource "random_id" "server" {
+  byte_length = 1
 }
 
-resource "random_string" "nomad_encrypt_key" {
-  length  = 32
-  special = false
+# Collect client config for GCP
+data "google_client_config" "current" {
 }
-
-# Create VPC Network
-resource "google_compute_network" "hashistack_vpc" {
-  name                    = "hashistack-vpc"
-  auto_create_subnetworks = false
-  description             = "VPC for HashiCorp stack deployment"
-}
-
-# Create subnet
-resource "google_compute_subnetwork" "hashistack_subnet" {
-  name          = "hashistack-subnet"
-  ip_cidr_range = var.subnet_cidr
-  region        = var.region
-  network       = google_compute_network.hashistack_vpc.id
-  
-  secondary_ip_range {
-    range_name    = "pods"
-    ip_cidr_range = "10.1.0.0/16"
-  }
-  
-  secondary_ip_range {
-    range_name    = "services"
-    ip_cidr_range = "10.2.0.0/16"
-  }
-}
-
-# Firewall rules
-resource "google_compute_firewall" "allow_internal" {
-  name    = "hashistack-allow-internal"
-  network = google_compute_network.hashistack_vpc.name
-
-  allow {
-    protocol = "tcp"
-  }
-
-  allow {
-    protocol = "udp"
-  }
-
-  allow {
-    protocol = "icmp"
-  }
-
-  source_ranges = [var.subnet_cidr, "10.1.0.0/16", "10.2.0.0/16"]
-}
-
-resource "google_compute_firewall" "allow_ssh" {
-  name    = "hashistack-allow-ssh"
-  network = google_compute_network.hashistack_vpc.name
-
-  allow {
-    protocol = "tcp"
-    ports    = ["22"]
-  }
-
-  source_ranges = ["0.0.0.0/0"]
-  target_tags   = ["hashistack"]
-}
-
-resource "google_compute_firewall" "allow_http_https" {
-  name    = "hashistack-allow-http-https"
-  network = google_compute_network.hashistack_vpc.name
-
-  allow {
-    protocol = "tcp"
-    ports    = ["80", "443", "8080", "8500", "4646", "3000", "9090"]
-  }
-
-  source_ranges = ["0.0.0.0/0"]
-  target_tags   = ["hashistack", "load-balancer"]
-}
-
-resource "google_compute_firewall" "allow_consul" {
-  name    = "hashistack-allow-consul"
-  network = google_compute_network.hashistack_vpc.name
-
-  allow {
-    protocol = "tcp"
-    ports    = ["8300", "8301", "8302", "8500", "8600"]
-  }
-
-  allow {
-    protocol = "udp"
-    ports    = ["8301", "8302", "8600"]
-  }
-
-  source_ranges = [var.subnet_cidr]
-  target_tags   = ["hashistack"]
-}
-
-resource "google_compute_firewall" "allow_nomad" {
-  name    = "hashistack-allow-nomad"
-  network = google_compute_network.hashistack_vpc.name
-
-  allow {
-    protocol = "tcp"
-    ports    = ["4646", "4647", "4648"]
-  }
-
-  source_ranges = [var.subnet_cidr]
-  target_tags   = ["hashistack"]
-}
-
-resource "google_compute_firewall" "allow_traefik" {
-  name    = "hashistack-allow-traefik"
-  network = google_compute_network.hashistack_vpc.name
-
-  allow {
-    protocol = "tcp"
-    ports    = ["80", "443", "8080"]
-  }
-
-  source_ranges = ["0.0.0.0/0"]
-  target_tags   = ["hashistack"]
-}
-
-# Use existing service account instead of creating new one
-data "google_service_account" "existing_sa" {
+data "google_service_account" "owner_project" {
   account_id = var.gcp_sa
 }
-# Generate CA certificate for internal communication
-resource "tls_private_key" "ca" {
-  algorithm = "RSA"
-  rsa_bits  = 2048
+
+
+
+## ----- Network capabilities ------
+# VPC creation
+resource "google_compute_network" "network" {
+  name = "${var.cluster_name}-network"
 }
 
-resource "tls_self_signed_cert" "ca" {
-  private_key_pem = tls_private_key.ca.private_key_pem
 
-  subject {
-    common_name  = "HashiStack CA"
-    organization = "HashiStack Demo"
+# Subnet creation
+resource "google_compute_subnetwork" "subnet" {
+  name = "${var.cluster_name}-subnetwork"
+
+  ip_cidr_range = "10.2.0.0/16"
+  region        = var.gcp_region
+  network       = google_compute_network.network.id
+}
+
+# Create an ip address for the load balancer
+resource "google_compute_address" "global-ip" {
+  name = "lb-ip"
+  region = var.gcp_region
+}
+
+# External IP addresses
+resource "google_compute_address" "server_addr" {
+  count = var.numnodes
+  name  = "server-addr-${count.index}"
+  # subnetwork = google_compute_subnetwork.subnet.id
+  region = var.gcp_region
+}
+
+resource "google_compute_address" "client_addr" {
+  count = var.numclients
+  name  = "client-addr-${count.index}"
+  # subnetwork = google_compute_subnetwork.subnet.id
+  region = var.gcp_region
+}
+
+# Create firewall rules
+
+resource "google_compute_firewall" "default" {
+  name    = "hashi-rules-${random_id.server.dec}"
+  network = google_compute_network.network.name
+
+  allow {
+    protocol = "tcp"
+    ports    = ["80","443","8500","8501","8502","8503","22","8300","8301","8400","8302","8600","4646","4647","4648","8443","8080"]
+  }
+  allow {
+    protocol = "udp"
+    ports = ["8600","8301","8302"]
   }
 
-  validity_period_hours = 8760 # 1 year
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = [var.cluster_name,"nomad-${var.cluster_name}","consul-${var.cluster_name}"]
+}
+# These are internal rules for communication between the nodes internally
+resource "google_compute_firewall" "internal" {
+  name    = "hashi-internal-rules-${random_id.server.dec}"
+  network = google_compute_network.network.name
 
-  is_ca_certificate = true
+  allow {
+    protocol = "tcp"
+  }
+  allow {
+    protocol = "udp"
+  }
 
-  allowed_uses = [
-    "key_encipherment",
-    "digital_signature",
-    "cert_signing",
+  source_tags = [var.cluster_name,"nomad-${var.cluster_name}","consul-${var.cluster_name}"]
+  target_tags   = [var.cluster_name,"nomad-${var.cluster_name}","consul-${var.cluster_name}"]
+}     
+
+# Creating Load Balancing with different required resources
+resource "google_compute_region_backend_service" "default" {
+  name          = "${var.cluster_name}-backend-service"
+  health_checks = [
+    google_compute_region_health_check.default.id
   ]
+  region = var.gcp_region
+  protocol = "TCP"
+  load_balancing_scheme = "EXTERNAL"
+  backend {
+    # group  = google_compute_instance_group.hashi_group.id
+    group = google_compute_region_instance_group_manager.hashi-group.instance_group
+    # balancing_mode = "CONNECTION"
+  }
 }
 
-# Generate Consul encryption key
-resource "random_id" "consul_encrypt" {
-  byte_length = 32
+resource "google_compute_region_backend_service" "apps" {
+  count = length(google_compute_region_instance_group_manager.clients-group)
+  name          = "${var.cluster_name}-apigw-${count.index}"
+  health_checks = [
+    google_compute_region_health_check.apps.id
+  ]
+  region = var.gcp_region
+  protocol = "TCP"
+  load_balancing_scheme = "EXTERNAL"
+  backend {
+    # group  = google_compute_instance_group.app_group.id
+    group = google_compute_region_instance_group_manager.clients-group[count.index].instance_group
+    # balancing_mode = "CONNECTION"
+  }
 }
+
+# resource "google_compute_target_pool" "vm-pool" {
+#   name = "instance-pool"
+
+#   instances = google_compute_instance_from_template.vm_clients.*.self_link
+
+#   health_checks = [
+#     google_compute_http_health_check.apps.id,
+#   ]
+# }
+
+resource "google_compute_region_health_check" "default" {
+  name = "health-check"
+  # request_path       = "/"
+  check_interval_sec = 1
+  timeout_sec        = 1
+  region = var.gcp_region
+
+  # http_health_check {
+  #   port = "8500"
+  #   request_path = "/ui"
+  # }
+  tcp_health_check {
+    port = "8500"
+  }
+}
+
+resource "google_compute_region_health_check" "apps" {
+  name = "health-check-apigw"
+  check_interval_sec = 1
+  timeout_sec        = 1
+  region = var.gcp_region
+
+  # http_health_check {
+  #   port = "8080"
+  #   request_path = "/"
+  # }
+  tcp_health_check {
+    port = "8080"
+  }
+}
+# resource "google_compute_http_health_check" "apps" {
+#   name               = "default"
+#   request_path       = "/"
+#   check_interval_sec = 1
+#   timeout_sec        = 1
+#   port = 8080
+# }
+
+resource "google_compute_forwarding_rule" "global-lb" {
+  name       = "hashistack-lb"
+  # ip_address = google_compute_global_address.global-ip.address
+  ip_address = google_compute_address.global-ip.address
+  # target     = google_compute_target_pool.vm-pool.self_link
+  backend_service = google_compute_region_backend_service.default.id
+  region = var.gcp_region
+  ip_protocol = "TCP"
+  ports = ["4646-4648","8500-8503","8600","9701-9702","8443"]
+}
+
+# The number of LBs for the apps will be equal to the number of region instance groups (one per admin partition)
+resource "google_compute_forwarding_rule" "clients-lb" {
+  count = length(google_compute_region_backend_service.apps)
+  name       = "clients-lb"
+  #  ip_address = google_compute_address.global-ip.address
+  backend_service = google_compute_region_backend_service.apps[count.index].id
+  # target    = google_compute_target_pool.vm-pool.self_link
+  region = var.gcp_region
+  ip_protocol = "TCP"
+  ports = ["80","443","8443","8080"]
+}
+
+
+
+
+
+data "google_compute_image" "my_image" {
+  family  = var.image_family
+  project = var.gcp_project
+}
+
+# Let's take the image from HCP Packer
+data "hcp_packer_version" "hardened-source" {
+  count = var.use_hcp_packer ? 1 : 0
+  bucket_name  = var.hcp_packer_bucket
+  channel_name = var.hcp_packer_channel
+}
+
+data "hcp_packer_artifact" "consul-nomad" {
+  count              = var.use_hcp_packer ? 1 : 0
+  bucket_name         = var.hcp_packer_bucket
+  version_fingerprint = data.hcp_packer_version.hardened-source[0].fingerprint
+  platform            = "gce"
+  region              = var.hcp_packer_region
+}
+
+
+data "google_dns_managed_zone" "doormat_dns_zone" {
+  count = var.dns_zone != "" ? 1 : 0
+  name = var.dns_zone
+}
+
+resource "google_dns_record_set" "dns" {
+  count = var.dns_zone != "" ? 1 : 0
+  name = "hashi-${var.cluster_name}.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
+  type = "A"
+  ttl  = 300
+
+  managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
+
+  rrdatas = [google_compute_forwarding_rule.global-lb.ip_address]
+}
+
+# resource "google_compute_global_forwarding_rule" "hashicups" {
+#   name                  = "hashicups-global-lb"
+#   ip_protocol           = "TCP"
+#   load_balancing_scheme = "EXTERNAL"
+#   port_range            = "80"
+#   target                = google_compute_target_http_proxy.hashicups.id
+#   # ip_address            = google_compute_global_address.default.id
+# }
+
+# # http proxy
+# resource "google_compute_target_http_proxy" "hashicups" {
+#   name     = "hashicups-proxy"
+#   # provider = google-beta
+#   url_map  = google_compute_url_map.hashicups.id
+# }
+
+# # url map
+# resource "google_compute_url_map" "hashicups" {
+#   name            = "url-map-hashicups"
+#   # provider        = google-beta
+#   default_service = google_compute_region_backend_service.default.id
+# }
+
+
+
+
+
+# resource "google_compute_region_instance_group_manager" "appserver" {
+#   name = "appserver-igm"
+
+#   base_instance_name         = "app"
+#   region                     = var.region
+#   # distribution_policy_zones  = ["us-central1-a", "us-central1-f"]
+
+#   version {
+#     instance_template = google_compute_instance_template.appserver.id
+#   }
+
+#   all_instances_config {
+#     metadata = {
+#       metadata_key = "metadata_value"
+#     }
+#     labels = {
+#       node = "my_node_-"
+#     }
+#   }
+
+#   # target_pools = [google_compute_target_pool.appserver.id]
+#   target_size  = var.numnodes
+
+#   named_port {
+#     name = "consul"
+#     port = 8500
+#   }
+#   named_port {
+#     name = "consul-sec"
+#     port = 8501
+#   }
+#   named_port {
+#     name = "consul-grpc"
+#     port = 8502
+#   }
+#   named_port {
+#     name = "consul-lan"
+#     port = 8301
+#   }
+#   named_port {
+#     name = "consul-wan"
+#     port = 8302
+#   }
+#   named_port {
+#     name = "consul-server"
+#     port = 8300
+#   }
+#   named_port {
+#     name = "nomad-server"
+#     port = 4646
+#   }
+#   named_port {
+#     name = "nomad-rpc"
+#     port = 4647
+#   }
+#   named_port {
+#     name = "nomad-wan"
+#     port = 4648
+#   }
+
+#   auto_healing_policies {
+#     health_check      = google_compute_health_check.autohealing.id
+#     initial_delay_sec = 300
+#   }
+# }
+
+# resource "google_compute_region_instance_group_manager" "rigm" {
+#   name = "dc-igm"
+
+#   base_instance_name = "consul-server"
+#   region = var.gcp_region
+#   distribution_policy_zones = local.zones
+
+#   version {
+#     instance_template = google_compute_instance_template.instance_template.id
+#   }
+
+#   # target_pools = [google_compute_target_pool.pool.id]
+#   target_size  = var.numnodes
+
+#   wait_for_instances = true
+
+#   update_policy {
+#     type                         = "OPPORTUNISTIC"
+#     instance_redistribution_type = "NONE"
+#     minimal_action               = "REPLACE"
+#     max_surge_fixed = 0
+#     max_unavailable_fixed = length(data.google_compute_zones.available)
+#   }
+#   named_port {
+#     name = "consul"
+#     port = 8500
+#   }
+#   named_port {
+#     name = "consul-sec"
+#     port = 8501
+#   }
+#   named_port {
+#     name = "grpc"
+#     port = 8502
+#   }
+#   named_port {
+#     name = "lan"
+#     port = 8301
+#   }
+#   named_port {
+#     name = "wan"
+#     port = 8302
+#   }
+#   named_port {
+#     name = "server"
+#     port = 8300
+#   }
+#   # # If want to implement autohealing for the instances in the group
+#   # auto_healing_policies {
+#   #   health_check      = google_compute_health_check.https_health_check.id
+#   #   initial_delay_sec = 300
+#   # }
+#   stateful_disk {
+#     device_name = "consul-${var.cluster_name}"
+#   }
+# }
+
+
+# Observability additions
+
+
 
