@@ -146,7 +146,7 @@ resource "google_compute_region_instance_group_manager" "hashi-group" {
 
   base_instance_name         = "hashi-server"
   region                     = var.gcp_region
-  distribution_policy_zones  = slice(data.google_compute_zones.available.names, 0, 3)
+  distribution_policy_zones  = slice(data.google_compute_zones.available.names, 0, min(3, length(data.google_compute_zones.available.names)))
 
   version {
     instance_template = google_compute_instance_template.instance_template.self_link
@@ -270,7 +270,7 @@ resource "google_compute_region_instance_group_manager" "clients-group" {
   name = "${var.cluster_name}-clients-igm-${count.index}"
   base_instance_name = length(var.consul_partitions) != 0 ? "hashi-clients-${var.consul_partitions[count.index]}" : "hashi-clients"
   region                     = var.gcp_region
-  distribution_policy_zones  = slice(data.google_compute_zones.available.names, 0, 3)
+  distribution_policy_zones  = slice(data.google_compute_zones.available.names, 0, min(3, length(data.google_compute_zones.available.names)))
 
   version {
     instance_template = google_compute_instance_template.instance_template_clients[count.index].self_link

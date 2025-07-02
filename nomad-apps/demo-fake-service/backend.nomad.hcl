@@ -22,6 +22,7 @@ job "backend-services" {
     network {
       mode = "bridge"
       port "public-api" {
+        static = 8082
         to = 9090
       }
     }
@@ -61,6 +62,7 @@ job "backend-services" {
     network {
       mode = "bridge"
       port "private-api" {
+        static = 8083
         to = 9090
       }
       # port "connect-proxy-private-api" {
