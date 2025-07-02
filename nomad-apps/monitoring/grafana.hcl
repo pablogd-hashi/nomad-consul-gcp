@@ -1,7 +1,7 @@
 job "grafana" {
   region      = "global"
   datacenters = ["*"]
-  type        = "service"
+  type = "service"
 
   group "grafana" {
     count = 1
@@ -14,35 +14,32 @@ job "grafana" {
     network {
       port "grafana_ui" {
         static = 3000
-        to     = 3000
       }
     }
 
     service {
       name = "grafana"
+      tags = ["monitoring", "dashboard"]
       port = "grafana_ui"
-      
-      tags = [
-        "monitoring",
-        "grafana",
-        "dashboard"
-      ]
+      address_mode = "host"
 
       check {
-        name     = "Grafana UI"
-        http     = "http://${NOMAD_ADDR_grafana_ui}/api/health"
+        type     = "http"
+        path     = "/api/health"
         interval = "10s"
         timeout  = "3s"
       }
 
       connect {
-        sidecar_service {}
+        sidecar_service {
+          proxy {
+            upstreams {
+              destination_name = "prometheus"
+              local_bind_port  = 9090
+            }
+          }
+        }
       }
-    }
-
-    volume "grafana-data" {
-      type   = "host"
-      source = "grafana-data"
     }
 
     task "grafana" {
@@ -50,102 +47,37 @@ job "grafana" {
 
       config {
         image = "grafana/grafana:latest"
+        network_mode = "host"
         ports = ["grafana_ui"]
-        
         mount {
           type   = "bind"
-          source = "local/grafana.ini"
-          target = "/etc/grafana/grafana.ini"
+          source = "local/prometheus-datasource.yml"
+          target = "/etc/grafana/provisioning/datasources/prometheus.yml"
         }
-
         mount {
           type   = "bind"
-          source = "local/datasources.yml"
-          target = "/etc/grafana/provisioning/datasources/datasources.yml"
+          source = "local/dashboard-provider.yml"
+          target = "/etc/grafana/provisioning/dashboards/dashboard-provider.yml"
         }
-
-        mount {
-          type   = "bind"
-          source = "local/dashboards.yml"
-          target = "/etc/grafana/provisioning/dashboards/dashboards.yml"
-        }
-      }
-
-      volume_mount {
-        volume      = "grafana-data"
-        destination = "/var/lib/grafana"
       }
 
       template {
-        data = <<EOH
-[server]
-protocol = http
-http_port = 3000
-domain = localhost
-root_url = %(protocol)s://%(domain)s/grafana/
-serve_from_sub_path = true
-
-[security]
-admin_user = admin
-admin_password = admin
-
-[users]
-allow_sign_up = false
-allow_org_create = false
-auto_assign_org = true
-auto_assign_org_role = Viewer
-
-[auth.anonymous]
-enabled = false
-
-[log]
-mode = console
-level = info
-
-[panels]
-disable_sanitize_html = false
-
-[paths]
-data = /var/lib/grafana
-logs = /var/log/grafana
-plugins = /var/lib/grafana/plugins
-provisioning = /etc/grafana/provisioning
-EOH
-        destination = "local/grafana.ini"
-      }
-
-      template {
-        data = <<EOH
+        data = <<EOF
 apiVersion: 1
-
-deleteDatasources:
-  - name: Prometheus
-    orgId: 1
 
 datasources:
   - name: Prometheus
     type: prometheus
     access: proxy
-    orgId: 1
-    url: http://{{ range service "prometheus" }}{{ .Address }}:{{ .Port }}{{ end }}/prometheus
-    basicAuth: false
+    url: http://localhost:9090
     isDefault: true
-    version: 1
     editable: false
-    jsonData:
-      httpMethod: POST
-      manageAlerts: true
-      prometheusType: Prometheus
-      prometheusVersion: 2.40.0
-      cacheLevel: 'High'
-      disableRecordingRules: false
-      incrementalQueryOverlapWindow: 10m
-EOH
-        destination = "local/datasources.yml"
+EOF
+        destination = "local/prometheus-datasource.yml"
       }
 
       template {
-        data = <<EOH
+        data = <<EOF
 apiVersion: 1
 
 providers:
@@ -154,23 +86,23 @@ providers:
     folder: ''
     type: file
     disableDeletion: false
-    editable: true
     updateIntervalSeconds: 10
     allowUiUpdates: true
     options:
-      path: /etc/grafana/provisioning/dashboards
-EOH
-        destination = "local/dashboards.yml"
+      path: /var/lib/grafana/dashboards
+EOF
+        destination = "local/dashboard-provider.yml"
       }
 
-      resources {
-        cpu    = 300
-        memory = 512
-      }
 
       env {
         GF_SECURITY_ADMIN_PASSWORD = "admin"
-        GF_INSTALL_PLUGINS = "grafana-piechart-panel"
+        GF_PATHS_PROVISIONING = "/etc/grafana/provisioning"
+      }
+
+      resources {
+        cpu    = 200
+        memory = 512
       }
     }
   }

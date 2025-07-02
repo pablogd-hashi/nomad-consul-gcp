@@ -52,3 +52,17 @@ EOF
 # EOF
   sensitive = true
 }
+
+# Monitoring service URLs
+output "monitoring_urls" {
+  description = "URLs for monitoring services"
+  value = var.dns_zone != "" ? {
+    traefik    = "http://${trimsuffix(google_dns_record_set.traefik[0].name,".")}:8080"
+    grafana    = "http://${trimsuffix(google_dns_record_set.grafana[0].name,".")}:3000"
+    prometheus = "http://${trimsuffix(google_dns_record_set.prometheus[0].name,".")}:9090"
+  } : {
+    traefik    = "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:8080"
+    grafana    = "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:3000"
+    prometheus = "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:9090"
+  }
+}
