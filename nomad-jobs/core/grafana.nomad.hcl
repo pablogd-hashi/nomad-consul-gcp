@@ -31,6 +31,7 @@ job "grafana" {
 
       config {
         image = "grafana/grafana:latest"
+        network_mode = "host"
         ports = ["grafana_ui"]
         mount {
           type   = "bind"
