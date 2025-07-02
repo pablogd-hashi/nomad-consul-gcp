@@ -73,7 +73,7 @@ resource "google_compute_firewall" "default" {
 
   allow {
     protocol = "tcp"
-    ports    = ["80","443","8500","8501","8502","8503","22","8300","8301","8400","8302","8600","4646","4647","4648","8443","8080"]
+    ports    = ["80","443","8500","8501","8502","8503","22","8300","8301","8400","8302","8600","4646","4647","4648","8443","8080","3000","9090"]
   }
   allow {
     protocol = "udp"
@@ -212,19 +212,20 @@ data "google_compute_image" "my_image" {
 }
 
 # Let's take the image from HCP Packer
-data "hcp_packer_version" "hardened-source" {
-  count = var.use_hcp_packer ? 1 : 0
-  bucket_name  = var.hcp_packer_bucket
-  channel_name = var.hcp_packer_channel
-}
+# Commented out to avoid HCP provider initialization when use_hcp_packer = false
+# data "hcp_packer_version" "hardened-source" {
+#   count = var.use_hcp_packer ? 1 : 0
+#   bucket_name  = var.hcp_packer_bucket
+#   channel_name = var.hcp_packer_channel
+# }
 
-data "hcp_packer_artifact" "consul-nomad" {
-  count              = var.use_hcp_packer ? 1 : 0
-  bucket_name         = var.hcp_packer_bucket
-  version_fingerprint = data.hcp_packer_version.hardened-source[0].fingerprint
-  platform            = "gce"
-  region              = var.hcp_packer_region
-}
+# data "hcp_packer_artifact" "consul-nomad" {
+#   count              = var.use_hcp_packer ? 1 : 0
+#   bucket_name         = var.hcp_packer_bucket
+#   version_fingerprint = data.hcp_packer_version.hardened-source[0].fingerprint
+#   platform            = "gce"
+#   region              = var.hcp_packer_region
+# }
 
 
 data "google_dns_managed_zone" "doormat_dns_zone" {
@@ -241,6 +242,40 @@ resource "google_dns_record_set" "dns" {
   managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
 
   rrdatas = [google_compute_forwarding_rule.global-lb.ip_address]
+}
+
+# DNS records for monitoring services
+resource "google_dns_record_set" "traefik" {
+  count = var.dns_zone != "" ? 1 : 0
+  name = "traefik-${var.cluster_name}.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
+  type = "A"
+  ttl  = 300
+
+  managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
+
+  rrdatas = [google_compute_forwarding_rule.clients-lb[0].ip_address]
+}
+
+resource "google_dns_record_set" "grafana" {
+  count = var.dns_zone != "" ? 1 : 0
+  name = "grafana-${var.cluster_name}.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
+  type = "A"
+  ttl  = 300
+
+  managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
+
+  rrdatas = [google_compute_forwarding_rule.clients-lb[0].ip_address]
+}
+
+resource "google_dns_record_set" "prometheus" {
+  count = var.dns_zone != "" ? 1 : 0
+  name = "prometheus-${var.cluster_name}.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
+  type = "A"
+  ttl  = 300
+
+  managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
+
+  rrdatas = [google_compute_forwarding_rule.clients-lb[0].ip_address]
 }
 
 # resource "google_compute_global_forwarding_rule" "hashicups" {

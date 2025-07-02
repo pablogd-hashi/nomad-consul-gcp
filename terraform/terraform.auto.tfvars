@@ -1,5 +1,5 @@
-#hcp_project_id = "xMnt1qwklPXAhr0ORJE6dYuB51yVG9os"
-#hcp_packer_channel = "latest"
+hcp_project_id = "xMnt1qwklPXAhr0ORJE6dYuB51yVG9os"
+hcp_packer_channel = "latest"
 use_hcp_packer = "false"
 hcp_packer_bucket = "consul-nomad"
 gcp_region = "europe-southwest1"

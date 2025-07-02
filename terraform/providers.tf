@@ -8,10 +8,6 @@ terraform {
       source = "hashicorp/consul"
       version = "2.20.0"
     }
-    hcp = {
-      source = "hashicorp/hcp"
-      version = "0.87.1"
-    }
   }
 }
 
@@ -28,7 +24,6 @@ provider "consul" {
   insecure_https = true
   token = var.consul_bootstrap_token
 }
-provider "hcp" {}
 # provider "azure" {
 #   version = ">=2.0.0"
 #   features {}
