@@ -1,10 +1,9 @@
 terraform { 
   cloud { 
-    
     organization = "pablogd-hcp-test" 
 
     workspaces { 
-      name = "consul-nomad-gcp" 
+      name = "hashistack-terramino-nomad-consul"
     } 
   } 
 }
@@ -206,6 +205,107 @@ resource "google_compute_forwarding_rule" "clients-lb" {
 
 
 
+# SSL Certificates and HTTPS Load Balancer
+resource "google_compute_managed_ssl_certificate" "monitoring_ssl" {
+  count = var.dns_zone != "" ? 1 : 0
+  name = "monitoring-ssl-cert"
+
+  managed {
+    domains = [
+      trimsuffix(google_dns_record_set.traefik[0].name, "."),
+      trimsuffix(google_dns_record_set.grafana[0].name, "."),
+      trimsuffix(google_dns_record_set.prometheus[0].name, "."),
+      trimsuffix(google_dns_record_set.consul[0].name, "."),
+      trimsuffix(google_dns_record_set.dns[0].name, ".")
+    ]
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# Global IP for HTTPS load balancer
+resource "google_compute_global_address" "https_ip" {
+  count = var.dns_zone != "" ? 1 : 0
+  name  = "https-lb-ip"
+}
+
+# Global forwarding rule for HTTPS
+resource "google_compute_global_forwarding_rule" "https-lb" {
+  count      = var.dns_zone != "" ? 1 : 0
+  name       = "https-forwarding-rule"
+  target     = google_compute_target_https_proxy.https_proxy[0].id
+  ip_address = google_compute_global_address.https_ip[0].address
+  port_range = "443"
+}
+
+# HTTPS proxy
+resource "google_compute_target_https_proxy" "https_proxy" {
+  count   = var.dns_zone != "" ? 1 : 0
+  name    = "https-proxy"
+  url_map = google_compute_url_map.https_lb[0].id
+  ssl_certificates = [google_compute_managed_ssl_certificate.monitoring_ssl[0].id]
+}
+
+# URL map for routing (simplified - route based on host headers)
+resource "google_compute_url_map" "https_lb" {
+  count           = var.dns_zone != "" ? 1 : 0
+  name            = "https-url-map"
+  default_service = google_compute_backend_service.https_backend[0].id
+}
+
+# Backend service for HTTPS (points to client nodes with Traefik)
+resource "google_compute_backend_service" "https_backend" {
+  count       = var.dns_zone != "" ? 1 : 0
+  name        = "https-backend-service"
+  protocol    = "HTTP"
+  port_name   = "http"
+  timeout_sec = 30
+
+  backend {
+    group = google_compute_region_instance_group_manager.clients-group[0].instance_group
+    balancing_mode = "UTILIZATION"
+  }
+
+  health_checks = [google_compute_health_check.http.id]
+}
+
+# Health check for HTTPS backend
+resource "google_compute_health_check" "http" {
+  name = "http-health-check"
+
+  http_health_check {
+    port = "8080"
+    request_path = "/ping"
+  }
+}
+
+# HTTP to HTTPS redirect
+resource "google_compute_url_map" "http_redirect" {
+  count = var.dns_zone != "" ? 1 : 0
+  name  = "http-redirect"
+
+  default_url_redirect {
+    https_redirect = true
+    strip_query    = false
+  }
+}
+
+resource "google_compute_target_http_proxy" "http_proxy" {
+  count   = var.dns_zone != "" ? 1 : 0
+  name    = "http-proxy"
+  url_map = google_compute_url_map.http_redirect[0].id
+}
+
+resource "google_compute_global_forwarding_rule" "http_redirect" {
+  count      = var.dns_zone != "" ? 1 : 0
+  name       = "http-redirect-rule"
+  target     = google_compute_target_http_proxy.http_proxy[0].id
+  ip_address = google_compute_global_address.https_ip[0].address
+  port_range = "80"
+}
+
 data "google_compute_image" "my_image" {
   family  = var.image_family
   project = var.gcp_project
@@ -235,7 +335,7 @@ data "google_dns_managed_zone" "doormat_dns_zone" {
 
 resource "google_dns_record_set" "dns" {
   count = var.dns_zone != "" ? 1 : 0
-  name = "hashi-${var.cluster_name}.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
+  name = "nomad.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
   type = "A"
   ttl  = 300
 
@@ -244,38 +344,49 @@ resource "google_dns_record_set" "dns" {
   rrdatas = [google_compute_forwarding_rule.global-lb.ip_address]
 }
 
-# DNS records for monitoring services
+# DNS records for monitoring services (use static IP to avoid circular dependency)
 resource "google_dns_record_set" "traefik" {
   count = var.dns_zone != "" ? 1 : 0
-  name = "traefik-${var.cluster_name}.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
+  name = "traefik.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
   type = "A"
   ttl  = 300
 
   managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
 
-  rrdatas = [google_compute_forwarding_rule.clients-lb[0].ip_address]
+  rrdatas = [google_compute_global_address.https_ip[0].address]
 }
 
 resource "google_dns_record_set" "grafana" {
   count = var.dns_zone != "" ? 1 : 0
-  name = "grafana-${var.cluster_name}.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
+  name = "grafana.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
   type = "A"
   ttl  = 300
 
   managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
 
-  rrdatas = [google_compute_forwarding_rule.clients-lb[0].ip_address]
+  rrdatas = [google_compute_global_address.https_ip[0].address]
 }
 
 resource "google_dns_record_set" "prometheus" {
   count = var.dns_zone != "" ? 1 : 0
-  name = "prometheus-${var.cluster_name}.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
+  name = "prometheus.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
   type = "A"
   ttl  = 300
 
   managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
 
-  rrdatas = [google_compute_forwarding_rule.clients-lb[0].ip_address]
+  rrdatas = [google_compute_global_address.https_ip[0].address]
+}
+
+resource "google_dns_record_set" "consul" {
+  count = var.dns_zone != "" ? 1 : 0
+  name = "consul.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
+  type = "A"
+  ttl  = 300
+
+  managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
+
+  rrdatas = [google_compute_global_address.https_ip[0].address]
 }
 
 # resource "google_compute_global_forwarding_rule" "hashicups" {
