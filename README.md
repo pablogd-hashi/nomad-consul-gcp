@@ -4,6 +4,8 @@ A production-ready deployment of HashiCorp Consul Enterprise, Nomad Enterprise, 
 
 ## 🏗️ Architecture Overview
 
+![HashiCorp Multi-Cluster Architecture](docs/images/architecture-diagram.png)
+
 This project deploys a complete HashiCorp ecosystem with:
 
 - **3 Server Nodes**: Combined Consul/Nomad servers with enterprise licenses (e2-standard-2)
@@ -379,6 +381,8 @@ task deploy-both
 
 ```
 ├── Taskfile.yml                      # Task automation for multi-cluster management
+├── docs/                              # Documentation and assets
+│   └── images/                        # Architecture diagrams and images
 ├── clusters/
 │   ├── dc1-us-east2/                # DC1 cluster (us-east2)
 │   │   ├── terraform/               # DC1 infrastructure
