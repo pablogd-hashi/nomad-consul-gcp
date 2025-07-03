@@ -31,21 +31,63 @@ This project deploys a complete HashiCorp ecosystem with:
 
 ## 🛠️ Quick Start
 
-### 1. Build Custom Images
+### Using the Taskfile (Recommended)
+
+This project includes a comprehensive Taskfile for easy management of single or multi-cluster deployments:
+
+```bash
+# Deploy single cluster
+task deploy-dc1          # Deploy DC1 (us-east2)
+task deploy-dc2          # Deploy DC2 (us-west2)
+
+# Deploy both clusters
+task deploy-both         # Deploy both DC1 and DC2
+
+# Deploy networking (Traefik)
+task deploy-networking   # Deploy Traefik to both clusters
+
+# Deploy monitoring (Prometheus + Grafana)
+task deploy-monitoring   # Deploy monitoring stack to both clusters
+
+# Full stack deployment
+task deploy-full-stack   # Deploy infrastructure + networking + monitoring
+
+# Get environment variables
+task eval-vars           # Show environment setup for both clusters
+task eval-vars-dc1       # Show DC1 environment variables
+task eval-vars-dc2       # Show DC2 environment variables
+
+# Show all access URLs
+task show-urls           # Display all service URLs for both clusters
+
+# Cluster status
+task status-dc1          # Show DC1 status
+task status-dc2          # Show DC2 status
+```
+
+### Manual Deployment (Alternative)
+
+#### 1. Build Custom Images
 ```bash
 cd packer/gcp
 # Edit gcp/consul_gcp.auth.pkvars.hcl with your GCP project
 packer build .
 ```
 
-### 2. Configure Variables
-Copy and edit the Terraform variables:
+#### 2. Configure Variables for Each Cluster
 ```bash
+# For DC1 (us-east2)
+cd clusters/dc1-us-east2/terraform
+cp terraform.tfvars.example terraform.auto.tfvars
+
+# For DC2 (us-west2)
+cd clusters/dc2-us-west2/terraform
 cp terraform.tfvars.example terraform.auto.tfvars
 ```
 
-Required variables:
+Required variables for each cluster:
 ```hcl
+# DC1 Configuration
 gcp_region = "us-east2"
 gcp_project = "your-gcp-project-id" 
 gcp_sa = "your-service-account@project.iam.gserviceaccount.com"
@@ -54,63 +96,160 @@ owner = "your-alias"
 consul_license = "02MV4UU43BK5HGYY..." # Your Consul Enterprise license
 nomad_license = "02MV4UU43BK5HGYY..."  # Your Nomad Enterprise license
 dns_zone = "your-dns-zone-name"        # Optional: for FQDN access
+
+# DC2 Configuration (modify region and cluster name)
+gcp_region = "us-west2"
+cluster_name = "gcp-dc2"
+# Other variables remain the same
 ```
 
-### 3. Deploy Infrastructure
+#### 3. Deploy Infrastructure
 ```bash
-cd terraform
+# Deploy DC1
+cd clusters/dc1-us-east2/terraform
+terraform init
+terraform plan
+terraform apply
+
+# Deploy DC2
+cd clusters/dc2-us-west2/terraform
 terraform init
 terraform plan
 terraform apply
 ```
 
-### 4. Configure Environment
+#### 4. Configure Environment & Setup Consul-Nomad Integration
 ```bash
-# Set up local environment variables
-eval "$(terraform output -raw environment_setup | grep 'bash_export' -A 10)"
+# For DC1
+cd clusters/dc1-us-east2/terraform
+eval "$(terraform output -json environment_setup | jq -r .bash_export)"
 
-# Verify cluster status
-consul members
-nomad server members
-nomad node status
+# SSH to DC1 server and configure Consul-Nomad integration
+ssh ubuntu@$(terraform output -json server_nodes | jq -r '.hashi_servers."server-1".public_ip')
+sudo nomad setup consul -y
+
+# For DC2
+cd clusters/dc2-us-west2/terraform
+eval "$(terraform output -json environment_setup | jq -r .bash_export)"
+
+# SSH to DC2 server and configure Consul-Nomad integration
+ssh ubuntu@$(terraform output -json server_nodes | jq -r '.hashi_servers."server-1".public_ip')
+sudo nomad setup consul -y
 ```
 
-## 🌐 Access Points
+**⚠️ CRITICAL:** After infrastructure deployment, you MUST run `nomad setup consul -y` on each cluster's server nodes to establish proper Consul-Nomad integration. This is required for service discovery and Connect mesh functionality.
 
-### Via Load Balancer (with DNS)
+## 🌐 Multi-Cluster Access Points
+
+### DC1 (us-east2) Access Points
+
+#### Via Load Balancer (with DNS)
 - **Consul UI**: `https://consul-gcp-dc1.yourdomain.com`
 - **Nomad UI**: `https://nomad-gcp-dc1.yourdomain.com`
 - **Grafana**: `https://grafana-gcp-dc1.yourdomain.com` (admin/admin)
 - **Traefik Dashboard**: `https://traefik-gcp-dc1.yourdomain.com`
 
-### Direct Instance Access
+#### Direct Instance Access
 ```bash
-# List instances and their IPs
+# Using Taskfile
+task ssh-dc1-server       # SSH to DC1 server node
+
+# Manual access
+cd clusters/dc1-us-east2/terraform
 terraform output quick_commands
-
-# SSH to server nodes
-ssh ubuntu@$(gcloud compute instances list --filter='name~hashi-server' --format='value(natIP)' --limit=1)
-
-# SSH to client nodes  
-ssh ubuntu@$(gcloud compute instances list --filter='name~hashi-clients' --format='value(natIP)' --limit=1)
+ssh ubuntu@$(terraform output -json server_nodes | jq -r '.hashi_servers."server-1".public_ip')
 ```
 
-## 🚀 Application Deployment
+### DC2 (us-west2) Access Points
 
-### Deploy Monitoring Stack
+#### Via Load Balancer (with DNS)
+- **Consul UI**: `https://consul-gcp-dc2.yourdomain.com`
+- **Nomad UI**: `https://nomad-gcp-dc2.yourdomain.com`
+- **Grafana**: `https://grafana-gcp-dc2.yourdomain.com` (admin/admin)
+- **Traefik Dashboard**: `https://traefik-gcp-dc2.yourdomain.com`
+
+#### Direct Instance Access
 ```bash
-# SSH to any server node
-export NOMAD_ADDR=http://localhost:4646
-export NOMAD_TOKEN="$(terraform output -raw auth_tokens | jq -r '.nomad_token')"
+# Using Taskfile
+task ssh-dc2-server       # SSH to DC2 server node
+
+# Manual access
+cd clusters/dc2-us-west2/terraform
+terraform output quick_commands
+ssh ubuntu@$(terraform output -json server_nodes | jq -r '.hashi_servers."server-1".public_ip')
+```
+
+### Quick Access Commands
+```bash
+# Show all URLs for both clusters
+task show-urls
+
+# Get environment variables for both clusters
+task eval-vars
+
+# Check status of both clusters
+task status-dc1
+task status-dc2
+```
+
+## 🚀 Multi-Cluster Application Deployment
+
+### Using Taskfile (Recommended)
+```bash
+# Setup Consul-Nomad integration (REQUIRED after infrastructure deployment)
+task setup-consul-nomad-both    # Setup integration for both clusters
+task setup-consul-nomad-dc1     # Setup integration for DC1 only
+task setup-consul-nomad-dc2     # Setup integration for DC2 only
+
+# Deploy networking (Traefik) to both clusters
+task deploy-networking
+
+# Deploy monitoring stack to both clusters
+task deploy-monitoring
+
+# Deploy to specific cluster
+task deploy-traefik-dc1    # Deploy Traefik to DC1 only
+task deploy-traefik-dc2    # Deploy Traefik to DC2 only
+task deploy-monitoring-dc1 # Deploy monitoring to DC1 only
+task deploy-monitoring-dc2 # Deploy monitoring to DC2 only
+
+# Stop all jobs in a cluster
+task stop-jobs-dc1
+task stop-jobs-dc2
+
+# Complete deployment workflow
+task deploy-full-stack     # Deploy infrastructure + setup integration + networking + monitoring
+```
+
+### Manual Deployment
+
+#### Deploy to DC1 (us-east2)
+```bash
+cd clusters/dc1-us-east2
+# Get environment variables
+eval "$(cd terraform && terraform output -json environment_setup | jq -r .bash_export)"
 
 # Deploy applications
-nomad job run jobs/traefik.nomad.hcl
-nomad job run jobs/prometheus.nomad.hcl  
-nomad job run jobs/grafana.nomad.hcl
+nomad job run jobs/monitoring/traefik.hcl
+nomad job run jobs/monitoring/prometheus.hcl  
+nomad job run jobs/monitoring/grafana.hcl
 ```
 
-### Deploy Demo Applications
+#### Deploy to DC2 (us-west2)
 ```bash
+cd clusters/dc2-us-west2
+# Get environment variables
+eval "$(cd terraform && terraform output -json environment_setup | jq -r .bash_export)"
+
+# Deploy applications
+nomad job run jobs/monitoring/traefik.hcl
+nomad job run jobs/monitoring/prometheus.hcl  
+nomad job run jobs/monitoring/grafana.hcl
+```
+
+### Demo Applications
+```bash
+# Deploy demo apps to both clusters
 nomad job run jobs/terramino.nomad.hcl
 nomad job status
 ```
@@ -161,11 +300,38 @@ terraform output quick_commands       # Useful management commands
 - **Network Security**: VPC isolation, firewall rules, internal communication only
 - **Access Control**: ACLs enabled by default, least-privilege principles
 
-## 🛠️ Common Operations
+## 🛠️ Multi-Cluster Operations
+
+### Taskfile Management
+```bash
+# Infrastructure management
+task deploy-both          # Deploy both clusters
+task destroy-both         # Destroy both clusters
+task deploy-full-stack    # Deploy complete stack with networking and monitoring
+
+# Application management
+task deploy-networking    # Deploy Traefik to both clusters
+task deploy-monitoring    # Deploy Prometheus + Grafana to both clusters
+task stop-jobs-dc1       # Stop all jobs in DC1
+task stop-jobs-dc2       # Stop all jobs in DC2
+
+# Status and monitoring
+task show-urls           # Show all service URLs
+task eval-vars           # Show environment variables for both clusters
+task status-dc1          # Show DC1 cluster status
+task status-dc2          # Show DC2 cluster status
+```
 
 ### Cluster Management
 ```bash
-# Check cluster health
+# Check cluster health (DC1)
+task eval-vars-dc1 && eval "$(task eval-vars-dc1 --silent)"
+consul members
+nomad server members
+nomad node status
+
+# Check cluster health (DC2)
+task eval-vars-dc2 && eval "$(task eval-vars-dc2 --silent)"
 consul members
 nomad server members
 nomad node status
@@ -180,7 +346,11 @@ nomad job scale <job-name> <count>
 
 ### Troubleshooting
 ```bash
-# Check service status on nodes
+# Check service status on nodes (SSH required)
+task ssh-dc1-server  # SSH to DC1 server
+task ssh-dc2-server  # SSH to DC2 server
+
+# On server nodes:
 sudo systemctl status consul
 sudo systemctl status nomad
 sudo journalctl -u consul -f
@@ -193,33 +363,55 @@ nomad alloc logs -f <allocation-id>
 
 ### Infrastructure Updates
 ```bash
-# Update instance templates
+# Update specific cluster
+cd clusters/dc1-us-east2/terraform
 terraform plan
 terraform apply
+
+# Update both clusters
+task deploy-both
 
 # Rolling update (managed instance groups handle this automatically)
 # Check status in GCP Console > Compute Engine > Instance Groups
 ```
 
-## 📁 Project Structure
+## 📁 Multi-Cluster Project Structure
 
 ```
-├── terraform/              # Infrastructure as Code
-│   ├── main.tf             # Core networking, load balancers, DNS
-│   ├── instances.tf        # Instance groups, templates, configs
-│   ├── variables.tf        # Input variables
-│   ├── outputs.tf          # Structured outputs
-│   └── consul.tf           # Consul-specific resources
-├── packer/                 # Custom image builds
-│   └── gcp/               # GCP-specific Packer configs
-├── jobs/                  # Nomad job definitions
-│   ├── traefik.nomad.hcl  # Load balancer
-│   ├── prometheus.nomad.hcl # Metrics collection
-│   ├── grafana.nomad.hcl   # Monitoring dashboard
-│   └── terramino.nomad.hcl # Demo application
-├── scripts/               # Deployment automation
-└── CLAUDE.md             # AI assistant instructions
+├── Taskfile.yml                      # Task automation for multi-cluster management
+├── clusters/
+│   ├── dc1-us-east2/                # DC1 cluster (us-east2)
+│   │   ├── terraform/               # DC1 infrastructure
+│   │   │   ├── main.tf             # Core networking, load balancers, DNS
+│   │   │   ├── instances.tf        # Instance groups, templates, configs
+│   │   │   ├── variables.tf        # Input variables
+│   │   │   ├── outputs.tf          # Structured outputs
+│   │   │   └── consul.tf           # Consul-specific resources
+│   │   └── jobs/                   # DC1 Nomad job definitions
+│   │       └── monitoring/         # Monitoring stack jobs
+│   │           ├── traefik.hcl     # Load balancer
+│   │           ├── prometheus.hcl  # Metrics collection
+│   │           └── grafana.hcl     # Monitoring dashboard
+│   └── dc2-us-west2/               # DC2 cluster (us-west2)
+│       ├── terraform/              # DC2 infrastructure (identical to DC1)
+│       └── jobs/                   # DC2 Nomad job definitions (identical to DC1)
+├── packer/                         # Custom image builds
+│   └── gcp/                       # GCP-specific Packer configs
+├── jobs/                          # Shared/legacy job definitions
+│   ├── traefik.nomad.hcl          # Load balancer
+│   ├── prometheus.nomad.hcl       # Metrics collection
+│   ├── grafana.nomad.hcl          # Monitoring dashboard
+│   └── terramino.nomad.hcl        # Demo application
+└── scripts/                       # Deployment automation
 ```
+
+### Key Architecture Notes
+
+- **Identical Configurations**: DC1 and DC2 have identical Terraform configurations and Nomad jobs
+- **Regional Separation**: DC1 deploys to us-east2, DC2 deploys to us-west2
+- **Centralized Management**: Taskfile provides unified commands for both clusters
+- **Independent Operation**: Each cluster operates independently with its own resources
+- **Consistent Naming**: Resources are named with cluster-specific prefixes (gcp-dc1, gcp-dc2)
 
 ## 🤝 Contributing
 
