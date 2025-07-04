@@ -6,16 +6,7 @@ job "prometheus" {
   group "monitoring" {
     count = 1
 
-    constraint {
-      attribute = "${node.class}"
-      value     = "client"
-    }
 
-    network {
-      port "prometheus_ui" {
-        static = 9090
-      }
-    }
 
     restart {
       attempts = 2
@@ -27,6 +18,7 @@ job "prometheus" {
     ephemeral_disk {
       size = 300
     }
+
 
     task "prometheus" {
       template {
@@ -77,13 +69,13 @@ EOH
           "local/prometheus.yml:/etc/prometheus/prometheus.yml",
         ]
 
-        ports = ["prometheus_ui"]
       }
 
       service {
         name = "prometheus"
         tags = ["monitoring", "metrics"]
-        port = "prometheus_ui"
+        port = 9090
+        address_mode = "driver"
 
         check {
           name     = "prometheus_ui port alive"
@@ -91,12 +83,10 @@ EOH
           path     = "/-/healthy"
           interval = "10s"
           timeout  = "2s"
-        }
-
-        connect {
-          sidecar_service {}
+          address_mode = "driver"
         }
       }
+
 
       resources {
         cpu    = 200

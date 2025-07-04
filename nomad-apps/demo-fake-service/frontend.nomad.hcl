@@ -13,8 +13,9 @@ job "front-service" {
 
   group "frontend" {
     network {
+      mode = "bridge"
       port "http" {
-        static = 8081
+        to = 9090
       }
     }
     service {

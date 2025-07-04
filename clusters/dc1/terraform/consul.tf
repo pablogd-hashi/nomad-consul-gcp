@@ -7,7 +7,7 @@ resource "null_resource" "wait_for_service" {
   ]
   provisioner "local-exec" {
     command = <<EOF
-until $(curl -k --output /dev/null --silent --head --fail https://${trimsuffix(local.fqdn,".")}:8501); do
+until $(curl -k --output /dev/null --silent --head --fail https://${var.dns_zone != "" ? trimsuffix(google_dns_record_set.consul[0].name, ".") : google_compute_forwarding_rule.global-lb.ip_address}:8501); do
   printf '...'
   sleep 5
 done

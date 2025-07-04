@@ -1,9 +1,8 @@
 Kind = "service-intentions"
-Name = "public-api"
+Name = "private-api"
 Sources = [
   {
     Name   = "front-service"
     Action = "allow"
-    Peer = "gcp-dc1-default"
   }
 ]

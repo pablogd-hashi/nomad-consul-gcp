@@ -91,19 +91,19 @@ packer build .
 
 #### 2. Configure Variables for Each Cluster
 ```bash
-# For DC1 (us-east2)
-cd clusters/dc1-us-east2/terraform
+# For DC1
+cd clusters/dc1/terraform
 cp terraform.tfvars.example terraform.auto.tfvars
 
-# For DC2 (us-west2)
-cd clusters/dc2-us-west2/terraform
+# For DC2
+cd clusters/dc2/terraform
 cp terraform.tfvars.example terraform.auto.tfvars
 ```
 
 Required variables for each cluster:
 ```hcl
 # DC1 Configuration
-gcp_region = "us-east2"
+gcp_region = "europe-southwest1"
 gcp_project = "your-gcp-project-id" 
 gcp_sa = "your-service-account@project.iam.gserviceaccount.com"
 cluster_name = "gcp-dc1"
@@ -113,7 +113,7 @@ nomad_license = "02MV4UU43BK5HGYY..."  # Your Nomad Enterprise license
 dns_zone = "your-dns-zone-name"        # Optional: for FQDN access
 
 # DC2 Configuration (modify region and cluster name)
-gcp_region = "us-west2"
+gcp_region = "europe-west1"
 cluster_name = "gcp-dc2"
 # Other variables remain the same
 ```
@@ -121,13 +121,13 @@ cluster_name = "gcp-dc2"
 #### 3. Deploy Infrastructure
 ```bash
 # Deploy DC1
-cd clusters/dc1-us-east2/terraform
+cd clusters/dc1/terraform
 terraform init
 terraform plan
 terraform apply
 
 # Deploy DC2
-cd clusters/dc2-us-west2/terraform
+cd clusters/dc2/terraform
 terraform init
 terraform plan
 terraform apply
@@ -136,7 +136,7 @@ terraform apply
 #### 4. Configure Environment & Setup Consul-Nomad Integration
 ```bash
 # For DC1
-cd clusters/dc1-us-east2/terraform
+cd clusters/dc1/terraform
 eval "$(terraform output -json environment_setup | jq -r .bash_export)"
 
 # SSH to DC1 server and configure Consul-Nomad integration
@@ -144,7 +144,7 @@ ssh ubuntu@$(terraform output -json server_nodes | jq -r '.hashi_servers."server
 sudo nomad setup consul -y
 
 # For DC2
-cd clusters/dc2-us-west2/terraform
+cd clusters/dc2/terraform
 eval "$(terraform output -json environment_setup | jq -r .bash_export)"
 
 # SSH to DC2 server and configure Consul-Nomad integration
@@ -159,10 +159,10 @@ sudo nomad setup consul -y
 ### DC1 (europe-southwest1) Access Points
 
 #### Via Load Balancer (with DNS)
-- **Consul UI**: `https://consul-gcp-dc1.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com`
-- **Nomad UI**: `https://nomad-gcp-dc1.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com`
-- **Grafana**: `https://grafana-gcp-dc1.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com` (admin/admin)
-- **Traefik Dashboard**: `https://traefik-gcp-dc1.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com`
+- **Consul UI**: `http://consul-gcp-dc1.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:8500`
+- **Nomad UI**: `http://nomad-gcp-dc1.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:4646`
+- **Grafana**: `http://grafana-gcp-dc1.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:3000` (admin/admin)
+- **Traefik Dashboard**: `http://traefik-gcp-dc1.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:8080`
 
 #### Direct Instance Access
 ```bash
@@ -170,7 +170,7 @@ sudo nomad setup consul -y
 task ssh-dc1-server       # SSH to DC1 server node
 
 # Manual access
-cd clusters/dc1-us-east2/terraform
+cd clusters/dc1/terraform
 terraform output quick_commands
 ssh ubuntu@$(terraform output -json server_nodes | jq -r '.hashi_servers."server-1".public_ip')
 ```
@@ -178,10 +178,10 @@ ssh ubuntu@$(terraform output -json server_nodes | jq -r '.hashi_servers."server
 ### DC2 (europe-west1) Access Points
 
 #### Via Load Balancer (with DNS)
-- **Consul UI**: `https://consul-gcp-dc2.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com`
-- **Nomad UI**: `https://nomad-gcp-dc2.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com`
-- **Grafana**: `https://grafana-gcp-dc2.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com` (admin/admin)
-- **Traefik Dashboard**: `https://traefik-gcp-dc2.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com`
+- **Consul UI**: `http://consul-gcp-dc2.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:8500`
+- **Nomad UI**: `http://nomad-gcp-dc2.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:4646`
+- **Grafana**: `http://grafana-gcp-dc2.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:3000` (admin/admin)
+- **Traefik Dashboard**: `http://traefik-gcp-dc2.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:8080`
 
 #### Direct Instance Access
 ```bash
@@ -189,7 +189,7 @@ ssh ubuntu@$(terraform output -json server_nodes | jq -r '.hashi_servers."server
 task ssh-dc2-server       # SSH to DC2 server node
 
 # Manual access
-cd clusters/dc2-us-west2/terraform
+cd clusters/dc2/terraform
 terraform output quick_commands
 ssh ubuntu@$(terraform output -json server_nodes | jq -r '.hashi_servers."server-1".public_ip')
 ```

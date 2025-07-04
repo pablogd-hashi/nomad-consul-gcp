@@ -18,8 +18,7 @@ provider "google" {
 }
 
 provider "consul" {
-  address = "${local.fqdn}:8501"
-  # address = "${trimsuffix(google_dns_record_set.dns.name,".")}:8501"
+  address = var.dns_zone != "" ? "${trimsuffix(google_dns_record_set.consul[0].name, ".")}:8501" : "${google_compute_forwarding_rule.global-lb.ip_address}:8501"
   scheme = "https"
   insecure_https = true
   token = var.consul_bootstrap_token

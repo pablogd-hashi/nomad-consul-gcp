@@ -22,7 +22,7 @@ variable "namespace" {
 variable "datacenter" {
   description = "The datacenter to deploy the gateway in."
   type        = string
-  default     = "gcp-dc1"
+  default     = "dc1"
 }
 
 job "my-api-gateway" {
@@ -34,8 +34,8 @@ job "my-api-gateway" {
     network {
       mode = "bridge"
       port "http" {
-        static = 8080
-        to     = 8080
+        static = 8081
+        to     = 8081
       }
     }
 

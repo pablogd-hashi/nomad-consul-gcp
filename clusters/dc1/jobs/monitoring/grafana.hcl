@@ -6,41 +6,7 @@ job "grafana" {
   group "grafana" {
     count = 1
 
-    constraint {
-      attribute = "${node.class}"
-      value     = "client"
-    }
 
-    network {
-      port "grafana_ui" {
-        static = 3000
-      }
-    }
-
-    service {
-      name = "grafana"
-      tags = ["monitoring", "dashboard"]
-      port = "grafana_ui"
-      address_mode = "host"
-
-      check {
-        type     = "http"
-        path     = "/api/health"
-        interval = "10s"
-        timeout  = "3s"
-      }
-
-      connect {
-        sidecar_service {
-          proxy {
-            upstreams {
-              destination_name = "prometheus"
-              local_bind_port  = 9090
-            }
-          }
-        }
-      }
-    }
 
     task "grafana" {
       driver = "docker"
@@ -48,7 +14,6 @@ job "grafana" {
       config {
         image = "grafana/grafana:latest"
         network_mode = "host"
-        ports = ["grafana_ui"]
         mount {
           type   = "bind"
           source = "local/prometheus-datasource.yml"
@@ -94,6 +59,28 @@ EOF
         destination = "local/dashboard-provider.yml"
       }
 
+
+      service {
+        name = "grafana"
+        tags = [
+          "monitoring", 
+          "dashboard",
+          "traefik.enable=true",
+          "traefik.http.routers.grafana.rule=PathPrefix(`/grafana`)",
+          "traefik.http.routers.grafana.entrypoints=web",
+          "traefik.http.services.grafana.loadbalancer.server.port=3000"
+        ]
+        port = 3000
+        address_mode = "driver"
+
+        check {
+          type     = "http"
+          path     = "/api/health"
+          interval = "10s"
+          timeout  = "3s"
+          address_mode = "driver"
+        }
+      }
 
       env {
         GF_SECURITY_ADMIN_PASSWORD = "admin"

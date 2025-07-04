@@ -6,60 +6,100 @@ job "traefik" {
   group "traefik" {
     count = 1
 
-    network {
-      mode = "bridge"
-      port "http" {
-        static = 80
-      }
-      port "api" {
-        static = 8080
-      }
-    }
 
-    service {
-      name = "traefik"
-      tags = ["loadbalancer", "proxy"]
-      port = "http"
-
-      check {
-        name     = "alive"
-        type     = "http"
-        port     = "api"
-        path     = "/ping"
-        interval = "10s"
-        timeout  = "2s"
-      }
-
-      connect {
-        sidecar_service {
-          proxy {
-            upstreams {
-              destination_name = "grafana"
-              local_bind_port  = 3001
-            }
-            upstreams {
-              destination_name = "prometheus"
-              local_bind_port  = 9091
-            }
-          }
-        }
-      }
-    }
 
     task "traefik" {
       driver = "docker"
 
       config {
         image        = "traefik:v3.0"
-        ports        = ["http", "api"]
+        network_mode = "host"
         args = [
           "--api.dashboard=true",
           "--api.insecure=true",
           "--entrypoints.web.address=:80",
+          "--entrypoints.websecure.address=:443",
           "--entrypoints.traefik.address=:8080",
-          "--providers.consul.endpoints=127.0.0.1:8500",
+          "--providers.file.filename=/local/dynamic.yml",
+          "--certificatesresolvers.letsencrypt.acme.tlschallenge=true",
+          "--certificatesresolvers.letsencrypt.acme.email=admin@example.com",
+          "--certificatesresolvers.letsencrypt.acme.storage=/local/acme.json",
           "--ping=true"
         ]
+      }
+
+      service {
+        name = "traefik"
+        tags = ["loadbalancer", "proxy"]
+        port = 80
+        address_mode = "driver"
+
+        check {
+          name     = "alive"
+          type     = "http"
+          port     = 8080
+          path     = "/ping"
+          interval = "10s"
+          timeout  = "2s"
+          address_mode = "driver"
+        }
+      }
+
+      service {
+        name = "traefik-https"
+        tags = ["loadbalancer", "proxy", "https"]
+        port = 443
+        address_mode = "driver"
+      }
+
+      template {
+        data = <<EOH
+http:
+  routers:
+    prometheus-http:
+      rule: "Host(`prometheus.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com`)"
+      service: prometheus
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+    prometheus-https:
+      rule: "Host(`prometheus.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com`)"
+      service: prometheus
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+    grafana-http:
+      rule: "Host(`grafana.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com`)"
+      service: grafana
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+    grafana-https:
+      rule: "Host(`grafana.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com`)"
+      service: grafana
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+  middlewares:
+    redirect-to-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+  services:
+    prometheus:
+      loadBalancer:
+        servers:
+          - url: "http://localhost:9090"
+    grafana:
+      loadBalancer:
+        servers:
+          - url: "http://localhost:3000"
+EOH
+        destination = "local/dynamic.yml"
       }
 
       resources {

@@ -94,9 +94,9 @@ tasks:
       NOMAD_TOKEN:
         sh: cd terraform && terraform output -json auth_tokens | jq -r '.nomad_token'
     cmds:
-      - nomad job run jobs/monitoring/traefik.hcl
+      - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job run jobs/monitoring/traefik.hcl
       - echo "Traefik deployed to DC1"
-      - nomad job status traefik
+      - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job status traefik
 
   deploy-traefik-dc2:
     desc: "Deploy Traefik to DC2"
@@ -107,9 +107,9 @@ tasks:
       NOMAD_TOKEN:
         sh: cd terraform && terraform output -json auth_tokens | jq -r '.nomad_token'
     cmds:
-      - nomad job run jobs/monitoring/traefik.hcl
+      - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job run jobs/monitoring/traefik.hcl
       - echo "Traefik deployed to DC2"
-      - nomad job status traefik
+      - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job status traefik
 
   deploy-traefik:
     desc: "Deploy Traefik to both clusters"
@@ -127,11 +127,11 @@ tasks:
       NOMAD_TOKEN:
         sh: cd terraform && terraform output -json auth_tokens | jq -r '.nomad_token'
     cmds:
-      - nomad job run jobs/monitoring/prometheus.hcl
-      - nomad job run jobs/monitoring/grafana.hcl
+      - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job run jobs/monitoring/prometheus.hcl
+      - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job run jobs/monitoring/grafana.hcl
       - echo "Monitoring stack deployed to DC1"
-      - nomad job status prometheus
-      - nomad job status grafana
+      - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job status prometheus
+      - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job status grafana
 
   deploy-monitoring-dc2:
     desc: "Deploy Prometheus and Grafana to DC2"
@@ -142,11 +142,11 @@ tasks:
       NOMAD_TOKEN:
         sh: cd terraform && terraform output -json auth_tokens | jq -r '.nomad_token'
     cmds:
-      - nomad job run jobs/monitoring/prometheus.hcl
-      - nomad job run jobs/monitoring/grafana.hcl
+      - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job run jobs/monitoring/prometheus.hcl
+      - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job run jobs/monitoring/grafana.hcl
       - echo "Monitoring stack deployed to DC2"
-      - nomad job status prometheus
-      - nomad job status grafana
+      - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job status prometheus
+      - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job status grafana
 
   deploy-monitoring:
     desc: "Deploy monitoring stack to both clusters"
@@ -180,11 +180,11 @@ tasks:
   show-urls:
     desc: "Show all access URLs for both clusters"
     cmds:
-      - echo "=== DC1 URLs (us-east2) ==="
+      - echo "=== DC1 URLs ==="
       - cd {{.DC1_DIR}} && terraform output hashistack_urls || echo "No URLs available"
       - cd {{.DC1_DIR}} && terraform output monitoring_urls || echo "No monitoring URLs available"
       - echo ""
-      - echo "=== DC2 URLs (us-west2) ==="
+      - echo "=== DC2 URLs ==="
       - cd {{.DC2_DIR}} && terraform output hashistack_urls || echo "No URLs available"
       - cd {{.DC2_DIR}} && terraform output monitoring_urls || echo "No monitoring URLs available"
 
@@ -192,14 +192,14 @@ tasks:
     desc: "Show environment variables for DC1"
     dir: "{{.DC1_DIR}}"
     cmds:
-      - echo "# DC1 Environment Setup (us-east2)"
+      - echo "# DC1 Environment Setup"
       - terraform output -json environment_setup | jq -r .bash_export
 
   eval-vars-dc2:
     desc: "Show environment variables for DC2"
     dir: "{{.DC2_DIR}}"
     cmds:
-      - echo "# DC2 Environment Setup (us-west2)"
+      - echo "# DC2 Environment Setup"
       - terraform output -json environment_setup | jq -r .bash_export
 
   eval-vars:

@@ -22,12 +22,12 @@ output "hashistack_urls" {
   description = "HashiCorp stack service URLs"
   value = {
     consul = {
-      ui_url = var.dns_zone != "" ? "https://${trimsuffix(google_dns_record_set.consul[0].name, ".")}" : "https://${google_compute_forwarding_rule.global-lb.ip_address}:8501"
-      api    = var.dns_zone != "" ? "https://${trimsuffix(google_dns_record_set.consul[0].name, ".")}" : "https://${google_compute_forwarding_rule.global-lb.ip_address}:8501"
+      ui_url = var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.consul[0].name, ".")}:8500" : "http://${google_compute_forwarding_rule.global-lb.ip_address}:8500"
+      api    = var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.consul[0].name, ".")}:8500" : "http://${google_compute_forwarding_rule.global-lb.ip_address}:8500"
     }
     nomad = {
-      ui_url = var.dns_zone != "" ? "https://${trimsuffix(google_dns_record_set.dns[0].name, ".")}" : "http://${google_compute_forwarding_rule.global-lb.ip_address}:4646"
-      api    = var.dns_zone != "" ? "https://${trimsuffix(google_dns_record_set.dns[0].name, ".")}" : "http://${google_compute_forwarding_rule.global-lb.ip_address}:4646"
+      ui_url = var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.dns[0].name, ".")}:4646" : "http://${google_compute_forwarding_rule.global-lb.ip_address}:4646"
+      api    = var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.dns[0].name, ".")}:4646" : "http://${google_compute_forwarding_rule.global-lb.ip_address}:4646"
     }
   }
 }
@@ -40,16 +40,16 @@ output "monitoring_urls" {
   description = "Monitoring and application service URLs"
   value = {
     traefik = {
-      dashboard = var.dns_zone != "" ? "https://${trimsuffix(google_dns_record_set.traefik[0].name, ".")}" : "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:8080"
-      api       = var.dns_zone != "" ? "https://${trimsuffix(google_dns_record_set.traefik[0].name, ".")}/api" : "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:8080/api"
+      dashboard = var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.traefik[0].name, ".")}:8080" : "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:8080"
+      api       = var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.traefik[0].name, ".")}:8080/api" : "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:8080/api"
     }
     grafana = {
-      dashboard = var.dns_zone != "" ? "https://${trimsuffix(google_dns_record_set.grafana[0].name, ".")}" : "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:3000"
+      dashboard = var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.grafana[0].name, ".")}:3000" : "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:3000"
       login     = "admin/admin"
     }
     prometheus = {
-      ui  = var.dns_zone != "" ? "https://${trimsuffix(google_dns_record_set.prometheus[0].name, ".")}" : "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:9090"
-      api = var.dns_zone != "" ? "https://${trimsuffix(google_dns_record_set.prometheus[0].name, ".")}/api/v1" : "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:9090/api/v1"
+      ui  = var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.prometheus[0].name, ".")}:9090" : "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:9090"
+      api = var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.prometheus[0].name, ".")}:9090/api/v1" : "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:9090/api/v1"
     }
   }
 }
@@ -112,24 +112,24 @@ output "environment_setup" {
   value = {
     bash_export = <<-EOT
       # HashiCorp Stack Environment Setup
-      export CONSUL_HTTP_ADDR="https://${local.fqdn}:8501"
+      export CONSUL_HTTP_ADDR="${var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.consul[0].name, ".")}:8500" : "http://${google_compute_forwarding_rule.global-lb.ip_address}:8500"}"
       export CONSUL_HTTP_TOKEN="${var.consul_bootstrap_token}"
       export CONSUL_HTTP_SSL_VERIFY=false
-      export NOMAD_ADDR="http://${local.fqdn}:4646"
+      export NOMAD_ADDR="${var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.dns[0].name, ".")}:4646" : "http://${google_compute_forwarding_rule.global-lb.ip_address}:4646"}"
       export NOMAD_TOKEN="${random_uuid.nomad_bootstrap.result}"
       
       # Quick access commands
-      alias consul-ui='open ${var.dns_zone != "" ? "https://${trimsuffix(google_dns_record_set.consul[0].name, ".")}" : "https://${google_compute_forwarding_rule.global-lb.ip_address}:8501"}'
-      alias nomad-ui='open ${var.dns_zone != "" ? "https://${trimsuffix(google_dns_record_set.dns[0].name, ".")}" : "http://${google_compute_forwarding_rule.global-lb.ip_address}:4646"}'
-      alias grafana-ui='open ${var.dns_zone != "" ? "https://${trimsuffix(google_dns_record_set.grafana[0].name, ".")}" : "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:3000"}'
+      alias consul-ui='open ${var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.consul[0].name, ".")}:8500" : "http://${google_compute_forwarding_rule.global-lb.ip_address}:8500"}'
+      alias nomad-ui='open ${var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.dns[0].name, ".")}:4646" : "http://${google_compute_forwarding_rule.global-lb.ip_address}:4646"}'
+      alias grafana-ui='open ${var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.grafana[0].name, ".")}:3000" : "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:3000"}'
     EOT
-
+    
     powershell_export = <<-EOT
       # HashiCorp Stack Environment Setup (PowerShell)
-      $env:CONSUL_HTTP_ADDR="https://${local.fqdn}:8501"
+      $env:CONSUL_HTTP_ADDR="${var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.consul[0].name, ".")}:8500" : "http://${google_compute_forwarding_rule.global-lb.ip_address}:8500"}"
       $env:CONSUL_HTTP_TOKEN="${var.consul_bootstrap_token}"
       $env:CONSUL_HTTP_SSL_VERIFY="false"
-      $env:NOMAD_ADDR="http://${local.fqdn}:4646"
+      $env:NOMAD_ADDR="${var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.dns[0].name, ".")}:4646" : "http://${google_compute_forwarding_rule.global-lb.ip_address}:4646"}"
       $env:NOMAD_TOKEN="${random_uuid.nomad_bootstrap.result}"
     EOT
   }
@@ -143,9 +143,9 @@ output "environment_setup" {
 output "quick_commands" {
   description = "Useful commands for cluster management"
   value = {
-    get_consul_token      = "terraform output -raw auth_tokens | jq -r '.consul_token'"
-    get_nomad_token       = "terraform output -raw auth_tokens | jq -r '.nomad_token'"
-    setup_env             = "eval \"$(terraform output -raw environment_setup | grep 'bash_export' -A 20 | tail -n +2 | head -n -1)\""
+    get_consul_token    = "terraform output -raw auth_tokens | jq -r '.consul_token'"
+    get_nomad_token     = "terraform output -raw auth_tokens | jq -r '.nomad_token'"
+    setup_env           = "eval \"$(terraform output -raw environment_setup | grep 'bash_export' -A 20 | tail -n +2 | head -n -1)\""
     list_server_instances = "gcloud compute instances list --filter='name~hashi-server' --format='table(name,zone,status,natIP)'"
     list_client_instances = "gcloud compute instances list --filter='name~hashi-clients' --format='table(name,zone,status,natIP)'"
     ssh_server_example    = "ssh debian@$(gcloud compute instances list --filter='name~hashi-server' --format='value(natIP)' --limit=1)"
@@ -165,7 +165,7 @@ output "load_balancers" {
       description = "Main load balancer for HashiCorp stack"
     }
     clients_lb = {
-      ip          = google_compute_forwarding_rule.clients-lb[0].ip_address
+      ip          = google_compute_forwarding_rule.clients-lb[0].ip_address  
       description = "Client load balancer for applications"
     }
   }
