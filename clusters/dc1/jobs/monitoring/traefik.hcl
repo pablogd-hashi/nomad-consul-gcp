@@ -61,29 +61,11 @@ http:
       service: prometheus
       entryPoints:
         - web
-      middlewares:
-        - redirect-to-https
-    prometheus-https:
-      rule: "Host(`prometheus.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com`)"
-      service: prometheus
-      entryPoints:
-        - websecure
-      tls:
-        certResolver: letsencrypt
     grafana-http:
       rule: "Host(`grafana.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com`)"
       service: grafana
       entryPoints:
         - web
-      middlewares:
-        - redirect-to-https
-    grafana-https:
-      rule: "Host(`grafana.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com`)"
-      service: grafana
-      entryPoints:
-        - websecure
-      tls:
-        certResolver: letsencrypt
   middlewares:
     redirect-to-https:
       redirectScheme:

@@ -283,21 +283,21 @@ resource "google_compute_health_check" "http" {
   }
 }
 
-# HTTP to HTTPS redirect
-resource "google_compute_url_map" "http_redirect" {
-  count = var.dns_zone != "" ? 1 : 0
-  name  = "${var.cluster_name}-http-redirect"
+# HTTP to HTTPS redirect - DISABLED
+# resource "google_compute_url_map" "http_redirect" {
+#   count = var.dns_zone != "" ? 1 : 0
+#   name  = "${var.cluster_name}-http-redirect"
 
-  default_url_redirect {
-    https_redirect = true
-    strip_query    = false
-  }
-}
+#   default_url_redirect {
+#     https_redirect = true
+#     strip_query    = false
+#   }
+# }
 
 resource "google_compute_target_http_proxy" "http_proxy" {
   count   = var.dns_zone != "" ? 1 : 0
   name    = "http-proxy"
-  url_map = google_compute_url_map.http_redirect[0].id
+  url_map = google_compute_url_map.https_lb[0].id
 }
 
 resource "google_compute_global_forwarding_rule" "http_redirect" {
@@ -366,7 +366,7 @@ resource "google_dns_record_set" "grafana" {
 
   managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
 
-  rrdatas = [google_compute_global_address.https_ip[0].address]
+  rrdatas = [google_compute_forwarding_rule.clients-lb[0].ip_address]
 }
 
 resource "google_dns_record_set" "prometheus" {
@@ -377,7 +377,7 @@ resource "google_dns_record_set" "prometheus" {
 
   managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
 
-  rrdatas = [google_compute_global_address.https_ip[0].address]
+  rrdatas = [google_compute_forwarding_rule.clients-lb[0].ip_address]
 }
 
 resource "google_dns_record_set" "consul" {
