@@ -6,12 +6,8 @@ job "traefik" {
   group "traefik" {
     count = 1
 
-    constraint {
-      attribute = "${node.class}"
-      value     = "client"
-    }
-
     network {
+      mode = "bridge"
       port "http" {
         static = 80
       }
@@ -55,7 +51,6 @@ job "traefik" {
 
       config {
         image        = "traefik:v3.0"
-        network_mode = "host"
         ports        = ["http", "api"]
         args = [
           "--api.dashboard=true",
@@ -63,7 +58,6 @@ job "traefik" {
           "--entrypoints.web.address=:80",
           "--entrypoints.traefik.address=:8080",
           "--providers.consul.endpoints=127.0.0.1:8500",
-          "--providers.consul.watch=true",
           "--ping=true"
         ]
       }

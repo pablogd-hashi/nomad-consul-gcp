@@ -1,6 +1,16 @@
-# HashiCorp Enterprise Stack on GCP
+# HashiCorp Enterprise Multi-Cluster Stack on GCP
 
-A production-ready deployment of HashiCorp Consul Enterprise, Nomad Enterprise, and supporting applications on Google Cloud Platform with comprehensive monitoring, load balancing, and enterprise security features.
+A production-ready multi-cluster deployment of HashiCorp Consul Enterprise 1.21.0+ent, Nomad Enterprise 1.10.0+ent, and supporting applications on Google Cloud Platform with comprehensive monitoring, load balancing, and enterprise security features.
+
+## 🆕 Latest Updates (January 2025)
+
+**Project Restructured for Multi-Cluster Deployment:**
+- ✅ **New GCP Project**: Migrated to `hc-1031dcc8d7c24bfdbb4c08979b0` 
+- ✅ **European Regions**: DC1 (europe-southwest1) + DC2 (europe-west1)
+- ✅ **Simplified Structure**: `clusters/dc1/` and `clusters/dc2/` folders
+- ✅ **Custom Images**: Built with Packer using latest HashiStack versions
+- ✅ **HCP Terraform**: Workspace integration with `DB-cluster-1` and `DC-cluster-2`
+- ✅ **Task Automation**: Enhanced Taskfile for complete lifecycle management
 
 ## 🏗️ Architecture Overview
 
@@ -23,8 +33,8 @@ This project deploys a complete HashiCorp ecosystem with:
   - `roles/iam.serviceAccountUser`
   - `roles/compute.admin`
   - `roles/dns.admin` (if using DNS zones)
-- **HashiCorp Consul Enterprise License** (1.17.0+ent compatible)
-- **HashiCorp Nomad Enterprise License** (1.7.2+ent compatible)
+- **HashiCorp Consul Enterprise License** (1.21.0+ent compatible)
+- **HashiCorp Nomad Enterprise License** (1.10.0+ent compatible)
 
 ### Required Tools
 - **Terraform CLI** v1.0+ or **HCP Terraform** access
@@ -38,9 +48,12 @@ This project deploys a complete HashiCorp ecosystem with:
 This project includes a comprehensive Taskfile for easy management of single or multi-cluster deployments:
 
 ```bash
+# Build HashiStack images first (REQUIRED)
+task build-images        # Build custom images with Packer
+
 # Deploy single cluster
-task deploy-dc1          # Deploy DC1 (us-east2)
-task deploy-dc2          # Deploy DC2 (us-west2)
+task deploy-dc1          # Deploy DC1 (europe-southwest1)
+task deploy-dc2          # Deploy DC2 (europe-west1)
 
 # Deploy both clusters
 task deploy-both         # Deploy both DC1 and DC2
@@ -143,13 +156,13 @@ sudo nomad setup consul -y
 
 ## 🌐 Multi-Cluster Access Points
 
-### DC1 (us-east2) Access Points
+### DC1 (europe-southwest1) Access Points
 
 #### Via Load Balancer (with DNS)
-- **Consul UI**: `https://consul-gcp-dc1.yourdomain.com`
-- **Nomad UI**: `https://nomad-gcp-dc1.yourdomain.com`
-- **Grafana**: `https://grafana-gcp-dc1.yourdomain.com` (admin/admin)
-- **Traefik Dashboard**: `https://traefik-gcp-dc1.yourdomain.com`
+- **Consul UI**: `https://consul-gcp-dc1.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com`
+- **Nomad UI**: `https://nomad-gcp-dc1.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com`
+- **Grafana**: `https://grafana-gcp-dc1.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com` (admin/admin)
+- **Traefik Dashboard**: `https://traefik-gcp-dc1.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com`
 
 #### Direct Instance Access
 ```bash
@@ -162,13 +175,13 @@ terraform output quick_commands
 ssh ubuntu@$(terraform output -json server_nodes | jq -r '.hashi_servers."server-1".public_ip')
 ```
 
-### DC2 (us-west2) Access Points
+### DC2 (europe-west1) Access Points
 
 #### Via Load Balancer (with DNS)
-- **Consul UI**: `https://consul-gcp-dc2.yourdomain.com`
-- **Nomad UI**: `https://nomad-gcp-dc2.yourdomain.com`
-- **Grafana**: `https://grafana-gcp-dc2.yourdomain.com` (admin/admin)
-- **Traefik Dashboard**: `https://traefik-gcp-dc2.yourdomain.com`
+- **Consul UI**: `https://consul-gcp-dc2.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com`
+- **Nomad UI**: `https://nomad-gcp-dc2.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com`
+- **Grafana**: `https://grafana-gcp-dc2.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com` (admin/admin)
+- **Traefik Dashboard**: `https://traefik-gcp-dc2.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com`
 
 #### Direct Instance Access
 ```bash
@@ -204,7 +217,7 @@ task setup-consul-nomad-dc1     # Setup integration for DC1 only
 task setup-consul-nomad-dc2     # Setup integration for DC2 only
 
 # Deploy networking (Traefik) to both clusters
-task deploy-networking
+task deploy-traefik
 
 # Deploy monitoring stack to both clusters
 task deploy-monitoring
@@ -225,9 +238,9 @@ task deploy-full-stack     # Deploy infrastructure + setup integration + network
 
 ### Manual Deployment
 
-#### Deploy to DC1 (us-east2)
+#### Deploy to DC1 (europe-southwest1)
 ```bash
-cd clusters/dc1-us-east2
+cd clusters/dc1
 # Get environment variables
 eval "$(cd terraform && terraform output -json environment_setup | jq -r .bash_export)"
 
@@ -237,9 +250,9 @@ nomad job run jobs/monitoring/prometheus.hcl
 nomad job run jobs/monitoring/grafana.hcl
 ```
 
-#### Deploy to DC2 (us-west2)
+#### Deploy to DC2 (europe-west1)
 ```bash
-cd clusters/dc2-us-west2
+cd clusters/dc2
 # Get environment variables
 eval "$(cd terraform && terraform output -json environment_setup | jq -r .bash_export)"
 
@@ -366,7 +379,7 @@ nomad alloc logs -f <allocation-id>
 ### Infrastructure Updates
 ```bash
 # Update specific cluster
-cd clusters/dc1-us-east2/terraform
+cd clusters/dc1/terraform
 terraform plan
 terraform apply
 
@@ -377,6 +390,37 @@ task deploy-both
 # Check status in GCP Console > Compute Engine > Instance Groups
 ```
 
+## 🔄 Migration and Current State
+
+This project has been recently migrated and updated with:
+
+### Current Configuration (January 2025)
+- **GCP Project**: `hc-1031dcc8d7c24bfdbb4c08979b0`
+- **Service Account**: `hc-1031dcc8d7c24bfdbb4c08979b0@appspot.gserviceaccount.com`
+- **DNS Zone**: `doormat-accountid`
+- **DNS Domain**: `hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com`
+- **DC1 Region**: `europe-southwest1` (zones: a, b)
+- **DC2 Region**: `europe-west1` (zones: b, c)
+
+### HCP Terraform Workspaces
+- **DC1**: `pablogd-hcp-test/DB-cluster-1`
+- **DC2**: `pablogd-hcp-test/DC-cluster-2`
+
+### Built Images
+Custom HashiStack images built with Packer containing:
+- **Consul Enterprise**: 1.21.0+ent
+- **Nomad Enterprise**: 1.10.0+ent
+- **Vault**: 1.14.1
+- **Docker**: Latest
+- **TLS Configuration**: Pre-configured certificates
+
+### Deployment Status
+✅ **Packer Images**: Built successfully in new project  
+🔄 **DC1 Infrastructure**: Currently deploying  
+⏳ **DC2 Infrastructure**: Pending DC1 completion  
+⏳ **Consul-Nomad Integration**: Required after infrastructure  
+⏳ **Application Deployment**: Traefik + Monitoring stack  
+
 ## 📁 Multi-Cluster Project Structure
 
 ```
@@ -384,8 +428,8 @@ task deploy-both
 ├── docs/                              # Documentation and assets
 │   └── images/                        # Architecture diagrams and images
 ├── clusters/
-│   ├── dc1-us-east2/                # DC1 cluster (us-east2)
-│   │   ├── terraform/               # DC1 infrastructure
+│   ├── dc1/                        # DC1 cluster (europe-southwest1)
+│   │   ├── terraform/              # DC1 infrastructure
 │   │   │   ├── main.tf             # Core networking, load balancers, DNS
 │   │   │   ├── instances.tf        # Instance groups, templates, configs
 │   │   │   ├── variables.tf        # Input variables
@@ -396,7 +440,7 @@ task deploy-both
 │   │           ├── traefik.hcl     # Load balancer
 │   │           ├── prometheus.hcl  # Metrics collection
 │   │           └── grafana.hcl     # Monitoring dashboard
-│   └── dc2-us-west2/               # DC2 cluster (us-west2)
+│   └── dc2/                        # DC2 cluster (europe-west1)
 │       ├── terraform/              # DC2 infrastructure (identical to DC1)
 │       └── jobs/                   # DC2 Nomad job definitions (identical to DC1)
 ├── packer/                         # Custom image builds
@@ -412,10 +456,12 @@ task deploy-both
 ### Key Architecture Notes
 
 - **Identical Configurations**: DC1 and DC2 have identical Terraform configurations and Nomad jobs
-- **Regional Separation**: DC1 deploys to us-east2, DC2 deploys to us-west2
+- **Regional Separation**: DC1 deploys to europe-southwest1, DC2 deploys to europe-west1
 - **Centralized Management**: Taskfile provides unified commands for both clusters
 - **Independent Operation**: Each cluster operates independently with its own resources
 - **Consistent Naming**: Resources are named with cluster-specific prefixes (gcp-dc1, gcp-dc2)
+- **HCP Terraform Integration**: Uses workspaces `DB-cluster-1` and `DC-cluster-2`
+- **Custom Images**: Built with Packer containing Consul Enterprise 1.21.0+ent and Nomad Enterprise 1.10.0+ent
 
 ## 🤝 Contributing
 

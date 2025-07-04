@@ -1,11 +1,12 @@
-terraform {
-  cloud {
-    organization = "pablogd-hcp-test"
+terraform { 
+  cloud { 
+    
+    organization = "pablogd-hcp-test" 
 
-    workspaces {
-      name = "hashistack-terramino-nomad-consul-dc2"
-    }
-  }
+    workspaces { 
+      name = "DB-cluster-1" 
+    } 
+  } 
 }
 
 terraform {
@@ -38,28 +39,28 @@ resource "google_compute_network" "network" {
 resource "google_compute_subnetwork" "subnet" {
   name = "${var.cluster_name}-subnetwork"
 
-  ip_cidr_range = "10.3.0.0/16"
+  ip_cidr_range = "10.2.0.0/16"
   region        = var.gcp_region
   network       = google_compute_network.network.id
 }
 
 # Create an ip address for the load balancer
 resource "google_compute_address" "global-ip" {
-  name   = "${var.cluster_name}-lb-ip"
+  name = "${var.cluster_name}-lb-ip"
   region = var.gcp_region
 }
 
 # External IP addresses
 resource "google_compute_address" "server_addr" {
   count = var.numnodes
-  name  = "${var.cluster_name}-server-addr-${count.index}"
+  name  = "server-addr-${count.index}"
   # subnetwork = google_compute_subnetwork.subnet.id
   region = var.gcp_region
 }
 
 resource "google_compute_address" "client_addr" {
   count = var.numclients
-  name  = "${var.cluster_name}-client-addr-${count.index}"
+  name  = "client-addr-${count.index}"
   # subnetwork = google_compute_subnetwork.subnet.id
   region = var.gcp_region
 }
@@ -72,15 +73,15 @@ resource "google_compute_firewall" "default" {
 
   allow {
     protocol = "tcp"
-    ports    = ["80", "443", "8500", "8501", "8502", "8503", "22", "8300", "8301", "8400", "8302", "8600", "4646", "4647", "4648", "8443", "8080", "3000", "9090"]
+    ports    = ["80","443","8500","8501","8502","8503","22","8300","8301","8400","8302","8600","4646","4647","4648","8443","8080","3000","9090"]
   }
   allow {
     protocol = "udp"
-    ports    = ["8600", "8301", "8302"]
+    ports = ["8600","8301","8302"]
   }
 
   source_ranges = ["0.0.0.0/0"]
-  target_tags   = [var.cluster_name, "nomad-${var.cluster_name}", "consul-${var.cluster_name}"]
+  target_tags   = [var.cluster_name,"nomad-${var.cluster_name}","consul-${var.cluster_name}"]
 }
 # These are internal rules for communication between the nodes internally
 resource "google_compute_firewall" "internal" {
@@ -94,18 +95,18 @@ resource "google_compute_firewall" "internal" {
     protocol = "udp"
   }
 
-  source_tags = [var.cluster_name, "nomad-${var.cluster_name}", "consul-${var.cluster_name}"]
-  target_tags = [var.cluster_name, "nomad-${var.cluster_name}", "consul-${var.cluster_name}"]
-}
+  source_tags = [var.cluster_name,"nomad-${var.cluster_name}","consul-${var.cluster_name}"]
+  target_tags   = [var.cluster_name,"nomad-${var.cluster_name}","consul-${var.cluster_name}"]
+}     
 
 # Creating Load Balancing with different required resources
 resource "google_compute_region_backend_service" "default" {
-  name = "${var.cluster_name}-backend-service"
+  name          = "${var.cluster_name}-backend-service"
   health_checks = [
     google_compute_region_health_check.default.id
   ]
-  region                = var.gcp_region
-  protocol              = "TCP"
+  region = var.gcp_region
+  protocol = "TCP"
   load_balancing_scheme = "EXTERNAL"
   backend {
     # group  = google_compute_instance_group.hashi_group.id
@@ -116,12 +117,12 @@ resource "google_compute_region_backend_service" "default" {
 
 resource "google_compute_region_backend_service" "apps" {
   count = length(google_compute_region_instance_group_manager.clients-group)
-  name  = "${var.cluster_name}-apigw-${count.index}"
+  name          = "${var.cluster_name}-apigw-${count.index}"
   health_checks = [
     google_compute_region_health_check.apps.id
   ]
-  region                = var.gcp_region
-  protocol              = "TCP"
+  region = var.gcp_region
+  protocol = "TCP"
   load_balancing_scheme = "EXTERNAL"
   backend {
     # group  = google_compute_instance_group.app_group.id
@@ -145,7 +146,7 @@ resource "google_compute_region_health_check" "default" {
   # request_path       = "/"
   check_interval_sec = 1
   timeout_sec        = 1
-  region             = var.gcp_region
+  region = var.gcp_region
 
   # http_health_check {
   #   port = "8500"
@@ -157,10 +158,10 @@ resource "google_compute_region_health_check" "default" {
 }
 
 resource "google_compute_region_health_check" "apps" {
-  name               = "${var.cluster_name}-health-check-apigw"
+  name = "${var.cluster_name}-health-check-apigw"
   check_interval_sec = 1
   timeout_sec        = 1
-  region             = var.gcp_region
+  region = var.gcp_region
 
   # http_health_check {
   #   port = "8080"
@@ -179,26 +180,26 @@ resource "google_compute_region_health_check" "apps" {
 # }
 
 resource "google_compute_forwarding_rule" "global-lb" {
-  name = "${var.cluster_name}-hashistack-lb"
+  name       = "hashistack-lb"
   # ip_address = google_compute_global_address.global-ip.address
   ip_address = google_compute_address.global-ip.address
   # target     = google_compute_target_pool.vm-pool.self_link
   backend_service = google_compute_region_backend_service.default.id
-  region          = var.gcp_region
-  ip_protocol     = "TCP"
-  ports           = ["4646-4648", "8500-8503", "8600", "9701-9702", "8443"]
+  region = var.gcp_region
+  ip_protocol = "TCP"
+  ports = ["4646-4648","8500-8503","8600","9701-9702","8443"]
 }
 
 # The number of LBs for the apps will be equal to the number of region instance groups (one per admin partition)
 resource "google_compute_forwarding_rule" "clients-lb" {
   count = length(google_compute_region_backend_service.apps)
-  name  = "${var.cluster_name}-clients-lb"
+  name       = "clients-lb"
   #  ip_address = google_compute_address.global-ip.address
   backend_service = google_compute_region_backend_service.apps[count.index].id
   # target    = google_compute_target_pool.vm-pool.self_link
-  region      = var.gcp_region
+  region = var.gcp_region
   ip_protocol = "TCP"
-  ports       = ["80", "443", "8443", "8080"]
+  ports = ["80","443","8443","8080"]
 }
 
 
@@ -208,7 +209,7 @@ resource "google_compute_forwarding_rule" "clients-lb" {
 # SSL Certificates and HTTPS Load Balancer
 resource "google_compute_managed_ssl_certificate" "monitoring_ssl" {
   count = var.dns_zone != "" ? 1 : 0
-  name  = "${var.cluster_name}-monitoring-ssl-cert"
+  name = "${var.cluster_name}-monitoring-ssl-cert"
 
   managed {
     domains = [
@@ -234,7 +235,7 @@ resource "google_compute_global_address" "https_ip" {
 # Global forwarding rule for HTTPS
 resource "google_compute_global_forwarding_rule" "https-lb" {
   count      = var.dns_zone != "" ? 1 : 0
-  name       = "${var.cluster_name}-https-forwarding-rule"
+  name       = "https-forwarding-rule"
   target     = google_compute_target_https_proxy.https_proxy[0].id
   ip_address = google_compute_global_address.https_ip[0].address
   port_range = "443"
@@ -242,29 +243,29 @@ resource "google_compute_global_forwarding_rule" "https-lb" {
 
 # HTTPS proxy
 resource "google_compute_target_https_proxy" "https_proxy" {
-  count            = var.dns_zone != "" ? 1 : 0
-  name             = "${var.cluster_name}-https-proxy"
-  url_map          = google_compute_url_map.https_lb[0].id
+  count   = var.dns_zone != "" ? 1 : 0
+  name    = "https-proxy"
+  url_map = google_compute_url_map.https_lb[0].id
   ssl_certificates = [google_compute_managed_ssl_certificate.monitoring_ssl[0].id]
 }
 
 # URL map for routing (simplified - route based on host headers)
 resource "google_compute_url_map" "https_lb" {
   count           = var.dns_zone != "" ? 1 : 0
-  name            = "${var.cluster_name}-https-url-map"
+  name            = "https-url-map"
   default_service = google_compute_backend_service.https_backend[0].id
 }
 
 # Backend service for HTTPS (points to client nodes with Traefik)
 resource "google_compute_backend_service" "https_backend" {
   count       = var.dns_zone != "" ? 1 : 0
-  name        = "${var.cluster_name}-https-backend-service"
+  name        = "https-backend-service"
   protocol    = "HTTP"
   port_name   = "http"
   timeout_sec = 30
 
   backend {
-    group          = google_compute_region_instance_group_manager.clients-group[0].instance_group
+    group = google_compute_region_instance_group_manager.clients-group[0].instance_group
     balancing_mode = "RATE"
     max_rate_per_instance = 100
   }
@@ -277,7 +278,7 @@ resource "google_compute_health_check" "http" {
   name = "${var.cluster_name}-http-health-check"
 
   http_health_check {
-    port         = "8080"
+    port = "8080"
     request_path = "/ping"
   }
 }
@@ -295,13 +296,13 @@ resource "google_compute_url_map" "http_redirect" {
 
 resource "google_compute_target_http_proxy" "http_proxy" {
   count   = var.dns_zone != "" ? 1 : 0
-  name    = "${var.cluster_name}-http-proxy"
+  name    = "http-proxy"
   url_map = google_compute_url_map.http_redirect[0].id
 }
 
 resource "google_compute_global_forwarding_rule" "http_redirect" {
   count      = var.dns_zone != "" ? 1 : 0
-  name       = "${var.cluster_name}-http-redirect-rule"
+  name       = "http-redirect-rule"
   target     = google_compute_target_http_proxy.http_proxy[0].id
   ip_address = google_compute_global_address.https_ip[0].address
   port_range = "80"
@@ -331,14 +332,14 @@ data "google_compute_image" "my_image" {
 
 data "google_dns_managed_zone" "doormat_dns_zone" {
   count = var.dns_zone != "" ? 1 : 0
-  name  = var.dns_zone
+  name = var.dns_zone
 }
 
 resource "google_dns_record_set" "dns" {
   count = var.dns_zone != "" ? 1 : 0
-  name  = "nomad-${var.cluster_name}.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
-  type  = "A"
-  ttl   = 300
+  name = "nomad.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
+  type = "A"
+  ttl  = 300
 
   managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
 
@@ -348,9 +349,9 @@ resource "google_dns_record_set" "dns" {
 # DNS records for monitoring services (use static IP to avoid circular dependency)
 resource "google_dns_record_set" "traefik" {
   count = var.dns_zone != "" ? 1 : 0
-  name  = "traefik-${var.cluster_name}.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
-  type  = "A"
-  ttl   = 300
+  name = "traefik.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
+  type = "A"
+  ttl  = 300
 
   managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
 
@@ -359,9 +360,9 @@ resource "google_dns_record_set" "traefik" {
 
 resource "google_dns_record_set" "grafana" {
   count = var.dns_zone != "" ? 1 : 0
-  name  = "grafana-${var.cluster_name}.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
-  type  = "A"
-  ttl   = 300
+  name = "grafana.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
+  type = "A"
+  ttl  = 300
 
   managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
 
@@ -370,9 +371,9 @@ resource "google_dns_record_set" "grafana" {
 
 resource "google_dns_record_set" "prometheus" {
   count = var.dns_zone != "" ? 1 : 0
-  name  = "prometheus-${var.cluster_name}.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
-  type  = "A"
-  ttl   = 300
+  name = "prometheus.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
+  type = "A"
+  ttl  = 300
 
   managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
 
@@ -381,9 +382,9 @@ resource "google_dns_record_set" "prometheus" {
 
 resource "google_dns_record_set" "consul" {
   count = var.dns_zone != "" ? 1 : 0
-  name  = "consul-${var.cluster_name}.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
-  type  = "A"
-  ttl   = 300
+  name = "consul.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
+  type = "A"
+  ttl  = 300
 
   managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
 

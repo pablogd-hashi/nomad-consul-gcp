@@ -1,43 +1,47 @@
 version: '3'
 
 vars:
-  DC1_DIR: clusters/dc1-us-east2/terraform
-  DC2_DIR: clusters/dc2-us-west2/terraform
+  DC1_DIR: clusters/dc1/terraform
+  DC2_DIR: clusters/dc2/terraform
 
 tasks:
+  # === Image Building ===
+
+  build-images:
+    desc: "Build HashiStack images with Packer"
+    dir: "packer/gcp"
+    cmds:
+      - echo "Building HashiStack images for new project..."
+      - packer build .
+      - echo "HashiStack images built successfully"
+
   # === Infrastructure Deployment ===
   
   deploy-dc1:
-    desc: "Deploy DC1 cluster (us-east2)"
+    desc: "Deploy DC1 cluster (europe-southwest1)"
     dir: "{{.DC1_DIR}}"
     cmds:
+      - terraform init
       - terraform apply -auto-approve
       - echo "=== DC1 Cluster Info ==="
       - terraform output cluster_info
       - echo "=== DC1 URLs ==="
       - terraform output hashistack_urls
       - echo "=== DC1 Environment Setup ==="
-      - echo 'eval "$(terraform output -json environment_setup | jq -r .bash_export)"'
-      - echo "=== CRITICAL: Setup Consul-Nomad Integration ==="
-      - echo "Run this command to configure Consul-Nomad integration:"
-      - |
-        echo "ssh ubuntu@\$(terraform output -json server_nodes | jq -r '.hashi_servers.\"server-1\".public_ip') 'sudo nomad setup consul -y'"
+      - terraform output -json environment_setup | jq -r .bash_export
 
   deploy-dc2:
-    desc: "Deploy DC2 cluster (us-west2)"
+    desc: "Deploy DC2 cluster (europe-west1)"
     dir: "{{.DC2_DIR}}"
     cmds:
+      - terraform init
       - terraform apply -auto-approve
       - echo "=== DC2 Cluster Info ==="
       - terraform output cluster_info
       - echo "=== DC2 URLs ==="
       - terraform output hashistack_urls
       - echo "=== DC2 Environment Setup ==="
-      - echo 'eval "$(terraform output -json environment_setup | jq -r .bash_export)"'
-      - echo "=== CRITICAL: Setup Consul-Nomad Integration ==="
-      - echo "Run this command to configure Consul-Nomad integration:"
-      - |
-        echo "ssh ubuntu@\$(terraform output -json server_nodes | jq -r '.hashi_servers.\"server-1\".public_ip') 'sudo nomad setup consul -y'"
+      - terraform output -json environment_setup | jq -r .bash_export
 
   deploy-both:
     desc: "Deploy both DC1 and DC2 clusters (sequential)"
@@ -45,13 +49,10 @@ tasks:
       - task: deploy-dc1
       - task: deploy-dc2
       - echo "=== Both clusters deployed ==="
-      - echo "DC1 (us-east2): $(cd {{.DC1_DIR}} && terraform output -json hashistack_urls | jq -r .nomad.ui_url)"
-      - echo "DC2 (us-west2): $(cd {{.DC2_DIR}} && terraform output -json hashistack_urls | jq -r .nomad.ui_url)"
-      - echo ""
-      - echo "🚨 CRITICAL NEXT STEPS:"
+      - echo "CRITICAL NEXT STEPS:"
       - echo "1. Run 'nomad setup consul -y' on each cluster's server nodes"
-      - echo "2. Use the SSH commands shown above to connect to each cluster"
-      - echo "3. Then deploy networking and monitoring with 'task deploy-full-stack'"
+      - echo "2. Use task ssh-dc1-server and task ssh-dc2-server to connect"
+      - echo "3. Then deploy networking and monitoring"
 
   # === Consul-Nomad Integration Setup ===
 
@@ -86,7 +87,7 @@ tasks:
 
   deploy-traefik-dc1:
     desc: "Deploy Traefik to DC1"
-    dir: "clusters/dc1-us-east2"
+    dir: "clusters/dc1"
     vars:
       NOMAD_ADDR:
         sh: cd terraform && terraform output -json hashistack_urls | jq -r '.nomad.api'
@@ -99,7 +100,7 @@ tasks:
 
   deploy-traefik-dc2:
     desc: "Deploy Traefik to DC2"
-    dir: "clusters/dc2-us-west2"
+    dir: "clusters/dc2"
     vars:
       NOMAD_ADDR:
         sh: cd terraform && terraform output -json hashistack_urls | jq -r '.nomad.api'
@@ -110,7 +111,7 @@ tasks:
       - echo "Traefik deployed to DC2"
       - nomad job status traefik
 
-  deploy-networking:
+  deploy-traefik:
     desc: "Deploy Traefik to both clusters"
     cmds:
       - task: deploy-traefik-dc1
@@ -119,7 +120,7 @@ tasks:
 
   deploy-monitoring-dc1:
     desc: "Deploy Prometheus and Grafana to DC1"
-    dir: "clusters/dc1-us-east2"
+    dir: "clusters/dc1"
     vars:
       NOMAD_ADDR:
         sh: cd terraform && terraform output -json hashistack_urls | jq -r '.nomad.api'
@@ -134,7 +135,7 @@ tasks:
 
   deploy-monitoring-dc2:
     desc: "Deploy Prometheus and Grafana to DC2"
-    dir: "clusters/dc2-us-west2"
+    dir: "clusters/dc2"
     vars:
       NOMAD_ADDR:
         sh: cd terraform && terraform output -json hashistack_urls | jq -r '.nomad.api'
@@ -154,52 +155,38 @@ tasks:
       - task: deploy-monitoring-dc2
       - echo "=== Monitoring stack deployed to both clusters ==="
 
-  # === Full Stack Deployment ===
-
-  deploy-full-stack:
-    desc: "Deploy complete stack: infrastructure + Consul-Nomad setup + networking + monitoring"
-    cmds:
-      - task: deploy-both
-      - echo "Waiting 60 seconds for clusters to stabilize..."
-      - sleep 60
-      - task: setup-consul-nomad-both
-      - echo "Waiting 30 seconds for Consul-Nomad integration to complete..."
-      - sleep 30
-      - task: deploy-networking
-      - echo "Waiting 30 seconds for Traefik to stabilize..."
-      - sleep 30
-      - task: deploy-monitoring
-      - echo "=== Full stack deployment complete ==="
-      - task: show-urls
-
   # === Status and Information ===
 
+  check-infra:
+    desc: "Check deployment status of both clusters"
+    cmds:
+      - echo "Checking DC1 Infrastructure..."
+      - cd {{.DC1_DIR}} && terraform show > /dev/null 2>&1 && echo "DC1 deployed" || echo "DC1 not deployed"
+      - echo "Checking DC2 Infrastructure..."  
+      - cd {{.DC2_DIR}} && terraform show > /dev/null 2>&1 && echo "DC2 deployed" || echo "DC2 not deployed"
+
   status-dc1:
-    desc: "Show DC1 cluster status"
+    desc: "Show DC1 status"
     dir: "{{.DC1_DIR}}"
     cmds:
-      - echo "=== DC1 Cluster Status ==="
-      - terraform output cluster_info
-      - terraform output load_balancers
+      - terraform output cluster_info || echo "No cluster info available"
 
   status-dc2:
-    desc: "Show DC2 cluster status"
+    desc: "Show DC2 status"
     dir: "{{.DC2_DIR}}"
     cmds:
-      - echo "=== DC2 Cluster Status ==="
-      - terraform output cluster_info
-      - terraform output load_balancers
+      - terraform output cluster_info || echo "No cluster info available"
 
   show-urls:
     desc: "Show all access URLs for both clusters"
     cmds:
       - echo "=== DC1 URLs (us-east2) ==="
-      - cd {{.DC1_DIR}} && terraform output hashistack_urls
-      - cd {{.DC1_DIR}} && terraform output monitoring_urls
+      - cd {{.DC1_DIR}} && terraform output hashistack_urls || echo "No URLs available"
+      - cd {{.DC1_DIR}} && terraform output monitoring_urls || echo "No monitoring URLs available"
       - echo ""
       - echo "=== DC2 URLs (us-west2) ==="
-      - cd {{.DC2_DIR}} && terraform output hashistack_urls
-      - cd {{.DC2_DIR}} && terraform output monitoring_urls
+      - cd {{.DC2_DIR}} && terraform output hashistack_urls || echo "No URLs available"
+      - cd {{.DC2_DIR}} && terraform output monitoring_urls || echo "No monitoring URLs available"
 
   eval-vars-dc1:
     desc: "Show environment variables for DC1"
@@ -222,6 +209,26 @@ tasks:
       - echo ""
       - task: eval-vars-dc2
 
+  # === Quick Access ===
+
+  ssh-dc1-server:
+    desc: "SSH to DC1 server node"
+    dir: "{{.DC1_DIR}}"
+    cmds:
+      - |
+        SERVER_IP=$(terraform output -json server_nodes | jq -r '.hashi_servers."server-1".public_ip')
+        echo "Connecting to DC1 server at $SERVER_IP"
+        ssh ubuntu@$SERVER_IP
+
+  ssh-dc2-server:
+    desc: "SSH to DC2 server node"
+    dir: "{{.DC2_DIR}}"
+    cmds:
+      - |
+        SERVER_IP=$(terraform output -json server_nodes | jq -r '.hashi_servers."server-1".public_ip')
+        echo "Connecting to DC2 server at $SERVER_IP"
+        ssh ubuntu@$SERVER_IP
+
   # === Cleanup ===
 
   destroy-dc1:
@@ -241,49 +248,3 @@ tasks:
     cmds:
       - task: destroy-dc1
       - task: destroy-dc2
-
-  # === Job Management ===
-
-  stop-jobs-dc1:
-    desc: "Stop all jobs in DC1"
-    dir: "clusters/dc1-us-east2"
-    vars:
-      NOMAD_ADDR:
-        sh: cd terraform && terraform output -json hashistack_urls | jq -r '.nomad.api'
-      NOMAD_TOKEN:
-        sh: cd terraform && terraform output -json auth_tokens | jq -r '.nomad_token'
-    cmds:
-      - nomad job stop traefik || true
-      - nomad job stop prometheus || true
-      - nomad job stop grafana || true
-
-  stop-jobs-dc2:
-    desc: "Stop all jobs in DC2"
-    dir: "clusters/dc2-us-west2"
-    vars:
-      NOMAD_ADDR:
-        sh: cd terraform && terraform output -json hashistack_urls | jq -r '.nomad.api'
-      NOMAD_TOKEN:
-        sh: cd terraform && terraform output -json auth_tokens | jq -r '.nomad_token'
-    cmds:
-      - nomad job stop traefik || true
-      - nomad job stop prometheus || true
-      - nomad job stop grafana || true
-
-  # === Quick Access ===
-
-  ssh-dc1-server:
-    desc: "SSH to DC1 server node"
-    dir: "{{.DC1_DIR}}"
-    cmds:
-      - |
-        SERVER_IP=$(terraform output -json server_nodes | jq -r '.hashi_servers."server-1".public_ip')
-        ssh ubuntu@$SERVER_IP
-
-  ssh-dc2-server:
-    desc: "SSH to DC2 server node"
-    dir: "{{.DC2_DIR}}"
-    cmds:
-      - |
-        SERVER_IP=$(terraform output -json server_nodes | jq -r '.hashi_servers."server-1".public_ip')
-        ssh ubuntu@$SERVER_IP
