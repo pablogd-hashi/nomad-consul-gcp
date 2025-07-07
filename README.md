@@ -11,6 +11,8 @@ A production-ready multi-cluster deployment of HashiCorp Consul Enterprise 1.21.
 - ✅ **Custom Images**: Built with Packer using latest HashiStack versions
 - ✅ **HCP Terraform**: Workspace integration with `DB-cluster-1` and `DC-cluster-2`
 - ✅ **Task Automation**: Enhanced Taskfile for complete lifecycle management
+- ✅ **Load Balancer**: Fixed GCP 5-port limit, added port 8081 for API Gateway
+- ✅ **API Gateway**: Consul API Gateway deployment with Nomad integration
 
 ## 🏗️ Architecture Overview
 
@@ -163,6 +165,8 @@ sudo nomad setup consul -y
 - **Nomad UI**: `http://nomad-gcp-dc1.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:4646`
 - **Grafana**: `http://grafana-gcp-dc1.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:3000` (admin/admin)
 - **Traefik Dashboard**: `http://traefik-gcp-dc1.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:8080`
+- **Prometheus**: `http://prometheus-gcp-dc1.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:9090`
+- **API Gateway**: `http://<clients_lb_ip>:8081` (Routes to front-service)
 
 #### Direct Instance Access
 ```bash
@@ -177,11 +181,16 @@ ssh ubuntu@$(terraform output -json server_nodes | jq -r '.hashi_servers."server
 
 ### DC2 (europe-west1) Access Points
 
-#### Via Load Balancer (with DNS)
+#### Access Points
 - **Consul UI**: `http://consul-gcp-dc2.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:8500`
 - **Nomad UI**: `http://nomad-gcp-dc2.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:4646`
-- **Grafana**: `http://grafana-gcp-dc2.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:3000` (admin/admin)
 - **Traefik Dashboard**: `http://traefik-gcp-dc2.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:8080`
+
+#### Direct IP Access (Monitoring Services)
+Get the clients LB IP: `terraform output load_balancers`
+- **Grafana**: `http://<clients_lb_ip>:3000` (admin/admin)
+- **Prometheus**: `http://<clients_lb_ip>:9090`
+- **API Gateway**: `http://<clients_lb_ip>:8081` (Routes to front-service)
 
 #### Direct Instance Access
 ```bash
@@ -267,6 +276,15 @@ nomad job run jobs/monitoring/grafana.hcl
 # Deploy demo apps to both clusters
 nomad job run jobs/terramino.nomad.hcl
 nomad job status
+
+# Deploy API Gateway and demo services
+nomad job run nomad-apps/api-gw.nomad/api-gw.nomad.hcl
+nomad job run nomad-apps/demo-fake-service/backend.nomad.hcl
+nomad job run nomad-apps/demo-fake-service/frontend.nomad.hcl
+
+# Configure Consul API Gateway
+consul config write consul/peering/configs/api-gateway/listener.hcl
+consul config write consul/peering/configs/api-gateway/httproute.hcl
 ```
 
 ## 🔧 Key Features
@@ -305,7 +323,39 @@ terraform output server_nodes         # Server instance group info
 terraform output client_nodes         # Client instance groups info
 terraform output auth_tokens          # Enterprise tokens (sensitive)
 terraform output quick_commands       # Useful management commands
+terraform output load_balancers       # Load balancer IP addresses
 ```
+
+### Load Balancer Access Points
+
+Each cluster provides two load balancer IPs for different services:
+
+```bash
+# Get load balancer IPs
+terraform output load_balancers
+
+# Direct IP access (when DNS is not configured)
+# Global LB (HashiCorp Stack)
+http://<global_lb_ip>:8500    # Consul UI
+http://<global_lb_ip>:4646    # Nomad UI
+
+# Clients LB (Applications & Monitoring)
+http://<clients_lb_ip>:3000   # Grafana (admin/admin)
+http://<clients_lb_ip>:8080   # Traefik Dashboard
+http://<clients_lb_ip>:8081   # API Gateway
+http://<clients_lb_ip>:9090   # Prometheus
+```
+
+### Port Configuration
+
+The load balancer exposes the following ports (limited to 5 by GCP):
+- **Port 80**: HTTP traffic
+- **Port 3000**: Grafana dashboard
+- **Port 8080**: Traefik dashboard
+- **Port 8081**: Consul API Gateway (NEW)
+- **Port 9090**: Prometheus metrics
+
+*Note: HTTPS (port 443) removed to stay within GCP's 5-port limit for demo purposes.*
 
 ## 🔐 Security Considerations
 
@@ -445,12 +495,24 @@ Custom HashiStack images built with Packer containing:
 │       └── jobs/                   # DC2 Nomad job definitions (identical to DC1)
 ├── packer/                         # Custom image builds
 │   └── gcp/                       # GCP-specific Packer configs
-├── jobs/                          # Shared/legacy job definitions
-│   ├── traefik.nomad.hcl          # Load balancer
-│   ├── prometheus.nomad.hcl       # Metrics collection
-│   ├── grafana.nomad.hcl          # Monitoring dashboard
-│   └── terramino.nomad.hcl        # Demo application
-└── scripts/                       # Deployment automation
+├── nomad-apps/                   # Application definitions
+│   ├── api-gw.nomad/             # Consul API Gateway
+│   │   └── api-gw.nomad.hcl      # API Gateway Nomad job
+│   ├── demo-fake-service/        # Demo microservices
+│   │   ├── backend.nomad.hcl     # Backend API services
+│   │   └── frontend.nomad.hcl    # Frontend service
+│   ├── monitoring/               # Monitoring stack
+│   │   ├── traefik.hcl          # Load balancer
+│   │   ├── prometheus.hcl       # Metrics collection
+│   │   └── grafana.hcl          # Monitoring dashboard
+│   └── terramino.hcl            # Demo Tetris game
+├── consul/                       # Consul configurations
+│   └── peering/                  # Consul Connect and API Gateway configs
+│       └── configs/
+│           └── api-gateway/
+│               ├── listener.hcl  # API Gateway listener (port 8081)
+│               └── httproute.hcl # HTTP routing rules
+└── scripts/                      # Deployment automation
 ```
 
 ### Key Architecture Notes

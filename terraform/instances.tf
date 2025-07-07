@@ -6,7 +6,7 @@ locals {
   # We concatenate the default partition with the list of partitions to create the instances including the default partition
   admin_partitions = distinct(concat(["default"],var.consul_partitions))
   vm_image = data.google_compute_image.my_image.self_link  # HCP Packer disabled for now
-  fqdn = var.dns_zone != "" ? "${trimsuffix(google_dns_record_set.dns[0].name,".")}" : "${google_compute_address.server_addr[0].address}"
+  fqdn = var.dns_zone != "" ? "${trimsuffix(google_dns_record_set.dns[0].name,".")}" : "${google_compute_forwarding_rule.global-lb.ip_address}"
 
 }
 # Let's get the zones from the region

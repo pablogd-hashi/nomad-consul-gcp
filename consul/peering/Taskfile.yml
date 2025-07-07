@@ -1,0 +1,168 @@
+version: '3'
+
+vars:
+  CONSUL_ADDR:
+    sh: echo "${CONSUL_HTTP_ADDR:-http://localhost:8500}"
+  NOMAD_ADDR:
+    sh: echo "${NOMAD_ADDR:-http://localhost:4646}"
+
+tasks:
+  setup-namespace:
+    desc: "Create Nomad namespace for API Gateway"
+    cmds:
+      - |
+        nomad namespace apply \
+          -description "namespace for Consul API Gateways" \
+          ingress
+
+  setup-acl:
+    desc: "Create Consul ACL binding rule for API Gateway"
+    cmds:
+      - |
+        consul acl binding-rule create \
+          -method 'nomad-workloads' \
+          -description 'Nomad API gateway' \
+          -bind-type 'templated-policy' \
+          -bind-name 'builtin/api-gateway' \
+          -bind-vars 'Name=${value.nomad_job_id}' \
+          -selector '"nomad_service" not in value and value.nomad_namespace==ingress'
+
+  setup-proxy-defaults:
+    desc: "Apply proxy defaults configuration"
+    cmds:
+      - consul config write configs/proxy-defaults.hcl
+
+  setup-intentions:
+    desc: "Apply service intentions for backend APIs"
+    cmds:
+      - consul config write configs/private-api-intentions.hcl
+      - consul config write configs/public-api-intentions.hcl
+
+  deploy-api-gateway:
+    desc: "Deploy API Gateway Nomad job"
+    cmds:
+      - nomad job run ../nomad-apps/api-gw.nomad/api-gw.nomad.hcl
+
+  configure-gateway:
+    desc: "Configure API Gateway listener and routes"
+    cmds:
+      - consul config write configs/api-gateway/listener.hcl
+      - consul config write configs/api-gateway/httproute.hcl
+
+  setup-frontend-intentions:
+    desc: "Apply frontend service intentions"
+    cmds:
+      - consul config write configs/front-intentions.hcl
+
+  deploy-demo-backend:
+    desc: "Deploy demo backend services"
+    cmds:
+      - nomad job run ../nomad-apps/demo-fake-service/backend.nomad.hcl
+
+  deploy-demo-frontend:
+    desc: "Deploy demo frontend service"
+    cmds:
+      - nomad job run ../nomad-apps/demo-fake-service/frontend.nomad.hcl
+
+  # Combined tasks for easier execution
+  setup-prerequisites:
+    desc: "Setup all prerequisites (namespace, ACL, proxy defaults, intentions)"
+    cmds:
+      - task: setup-namespace
+      - task: setup-acl
+      - task: setup-proxy-defaults
+      - task: setup-intentions
+
+  deploy-gateway-stack:
+    desc: "Deploy API Gateway and configure routing"
+    cmds:
+      - task: deploy-api-gateway
+      - task: configure-gateway
+      - task: setup-frontend-intentions
+
+  deploy-demo-apps:
+    desc: "Deploy all demo application services"
+    cmds:
+      - task: deploy-demo-backend
+      - task: deploy-demo-frontend
+
+  full-deployment:
+    desc: "Complete deployment: prerequisites, gateway, and demo apps"
+    cmds:
+      - task: setup-prerequisites
+      - task: deploy-gateway-stack
+      - task: deploy-demo-apps
+
+  # Cleanup tasks
+  cleanup-jobs:
+    desc: "Stop and purge all deployed jobs"
+    cmds:
+      - nomad job stop -purge my-api-gateway || true
+      - nomad job stop -purge backend-services || true
+      - nomad job stop -purge front-service || true
+
+  cleanup-configs:
+    desc: "Delete Consul configurations"
+    cmds:
+      - consul config delete -kind api-gateway -name my-api-gateway || true
+      - consul config delete -kind http-route -name my-http-route || true
+      - consul config delete -kind service-intentions -name front-service || true
+      - consul config delete -kind service-intentions -name private-api || true
+      - consul config delete -kind service-intentions -name public-api || true
+
+  cleanup-namespace:
+    desc: "Delete Nomad namespace"
+    cmds:
+      - nomad namespace delete ingress || true
+
+  full-cleanup:
+    desc: "Complete cleanup of all resources"
+    cmds:
+      - task: cleanup-jobs
+      - task: cleanup-configs
+      - task: cleanup-namespace
+
+  # Status and verification tasks
+  status:
+    desc: "Check status of all components"
+    cmds:
+      - echo "=== Nomad Jobs ==="
+      - nomad job status my-api-gateway || echo "API Gateway not running"
+      - nomad job status backend-services || echo "Backend services not running"
+      - nomad job status front-service || echo "Frontend service not running"
+      - echo ""
+      - echo "=== Consul Configs ==="
+      - consul config read -kind api-gateway -name my-api-gateway || echo "API Gateway config not found"
+      - consul config read -kind http-route -name my-http-route || echo "HTTP Route config not found"
+      - echo ""
+      - echo "=== Services ==="
+      - consul catalog services
+
+  test-api-gateway:
+    desc: "Test API Gateway connectivity"
+    cmds:
+      - echo "Testing API Gateway on port 8081..."
+      - curl -s http://localhost:8081 || echo "API Gateway not accessible"
+
+  # Peering tasks
+  setup-peering-dc1:
+    desc: "Setup peering from DC1 side"
+    cmds:
+      - echo "Creating peering token in DC1..."
+      - consul peering generate-token -name dc2-peering > dc2-peering-token.txt
+      - echo "Peering token generated: dc2-peering-token.txt"
+
+  setup-peering-dc2:
+    desc: "Setup peering from DC2 side (requires token from DC1)"
+    cmds:
+      - echo "Establishing peering in DC2..."
+      - consul peering establish -name dc1-peering -peering-token "$(cat dc2-peering-token.txt)"
+
+  verify-peering:
+    desc: "Verify peering status"
+    cmds:
+      - echo "=== Peering Status ==="
+      - consul peering list
+      - echo ""
+      - echo "=== Exported Services ==="
+      - consul config read -kind exported-services -name default || echo "No exported services configured"

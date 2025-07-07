@@ -18,10 +18,9 @@ provider "google" {
 }
 
 provider "consul" {
-  address = "${local.fqdn}:8501"
-  # address = "${trimsuffix(google_dns_record_set.dns.name,".")}:8501"
-  scheme = "https"
-  insecure_https = true
+  address = "${local.fqdn}:8500"
+  # address = "${trimsuffix(google_dns_record_set.dns.name,".")}:8500"
+  scheme = "http"
   token = var.consul_bootstrap_token
 }
 # provider "azure" {

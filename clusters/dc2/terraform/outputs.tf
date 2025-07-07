@@ -44,12 +44,14 @@ output "monitoring_urls" {
       api       = var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.traefik[0].name, ".")}:8080/api" : "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:8080/api"
     }
     grafana = {
-      dashboard = var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.grafana[0].name, ".")}:3000" : "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:3000"
+      dashboard = "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:3000"
       login     = "admin/admin"
+      note      = "Access via direct IP - DNS disabled for monitoring services"
     }
     prometheus = {
-      ui  = var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.prometheus[0].name, ".")}:9090" : "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:9090"
-      api = var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.prometheus[0].name, ".")}:9090/api/v1" : "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:9090/api/v1"
+      ui  = "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:9090"
+      api = "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:9090/api/v1"
+      note = "Access via direct IP - DNS disabled for monitoring services"
     }
   }
 }

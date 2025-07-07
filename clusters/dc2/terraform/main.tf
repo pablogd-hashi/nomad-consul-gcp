@@ -143,17 +143,13 @@ resource "google_compute_region_backend_service" "apps" {
 
 resource "google_compute_region_health_check" "default" {
   name = "${var.cluster_name}-health-check"
-  # request_path       = "/"
-  check_interval_sec = 1
-  timeout_sec        = 1
+  check_interval_sec = 5
+  timeout_sec        = 5
   region             = var.gcp_region
 
-  # http_health_check {
-  #   port = "8500"
-  #   request_path = "/ui"
-  # }
-  tcp_health_check {
+  http_health_check {
     port = "8500"
+    request_path = "/v1/status/leader"
   }
 }
 
@@ -199,7 +195,7 @@ resource "google_compute_forwarding_rule" "clients-lb" {
   # target    = google_compute_target_pool.vm-pool.self_link
   region      = var.gcp_region
   ip_protocol = "TCP"
-  ports       = ["80", "443", "8443", "8080"]
+  ports       = ["80", "3000", "8080", "8081", "9090"]
 }
 
 
@@ -358,27 +354,9 @@ resource "google_dns_record_set" "traefik" {
   rrdatas = [google_compute_forwarding_rule.clients-lb[0].ip_address]
 }
 
-resource "google_dns_record_set" "grafana" {
-  count = var.dns_zone != "" ? 1 : 0
-  name  = "grafana-${var.cluster_name}.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
-  type  = "A"
-  ttl   = 300
+# DNS record for Grafana removed - use direct IP access instead
 
-  managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
-
-  rrdatas = [google_compute_global_address.https_ip[0].address]
-}
-
-resource "google_dns_record_set" "prometheus" {
-  count = var.dns_zone != "" ? 1 : 0
-  name  = "prometheus-${var.cluster_name}.${data.google_dns_managed_zone.doormat_dns_zone[0].dns_name}"
-  type  = "A"
-  ttl   = 300
-
-  managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
-
-  rrdatas = [google_compute_global_address.https_ip[0].address]
-}
+# DNS record for Prometheus removed - use direct IP access instead
 
 resource "google_dns_record_set" "consul" {
   count = var.dns_zone != "" ? 1 : 0
@@ -388,7 +366,7 @@ resource "google_dns_record_set" "consul" {
 
   managed_zone = data.google_dns_managed_zone.doormat_dns_zone[0].name
 
-  rrdatas = [google_compute_global_address.https_ip[0].address]
+  rrdatas = [google_compute_forwarding_rule.global-lb.ip_address]
 }
 
 # resource "google_compute_global_forwarding_rule" "hashicups" {

@@ -126,7 +126,7 @@ resource "google_compute_region_backend_service" "apps" {
   backend {
     # group  = google_compute_instance_group.app_group.id
     group = google_compute_region_instance_group_manager.clients-group[count.index].instance_group
-    # balancing_mode = "CONNECTION"
+    balancing_mode = "UTILIZATION"
   }
 }
 
