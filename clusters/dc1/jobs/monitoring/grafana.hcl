@@ -37,6 +37,12 @@ datasources:
     url: http://localhost:9090
     isDefault: true
     editable: false
+    
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://localhost:3100
+    editable: false
 EOF
         destination = "local/prometheus-datasource.yml"
       }
@@ -58,6 +64,7 @@ providers:
 EOF
         destination = "local/dashboard-provider.yml"
       }
+
 
 
       service {

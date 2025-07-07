@@ -35,7 +35,7 @@ scrape_configs:
 
   - job_name: 'nomad-servers'
     static_configs:
-    - targets: ['localhost:4646']
+    - targets: ['{{ env "NOMAD_IP_prometheus_ui" }}:4646']
     metrics_path: /v1/metrics
     params:
       format: ['prometheus']
@@ -43,7 +43,7 @@ scrape_configs:
 
   - job_name: 'nomad-clients'
     static_configs: 
-    - targets: ['localhost:4646']
+    - targets: ['{{ env "NOMAD_IP_prometheus_ui" }}:4646']
     metrics_path: /v1/metrics
     params:
       format: ['prometheus']
@@ -51,7 +51,7 @@ scrape_configs:
 
   - job_name: 'consul'
     static_configs:
-    - targets: ['localhost:8500']
+    - targets: ['{{ env "NOMAD_IP_prometheus_ui" }}:8500']
     metrics_path: /v1/agent/metrics
     params:
       format: ['prometheus']
@@ -73,14 +73,7 @@ EOH
 
       service {
         name = "prometheus"
-        tags = [
-          "monitoring", 
-          "metrics",
-          "traefik.enable=true",
-          "traefik.http.routers.prometheus.rule=PathPrefix(`/prometheus`)",
-          "traefik.http.routers.prometheus.entrypoints=web",
-          "traefik.http.services.prometheus.loadbalancer.server.port=9090"
-        ]
+        tags = ["monitoring", "metrics"]
         port = 9090
         address_mode = "driver"
 

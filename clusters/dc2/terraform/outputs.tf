@@ -123,7 +123,7 @@ output "environment_setup" {
       # Quick access commands
       alias consul-ui='open ${var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.consul[0].name, ".")}:8500" : "http://${google_compute_forwarding_rule.global-lb.ip_address}:8500"}'
       alias nomad-ui='open ${var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.dns[0].name, ".")}:4646" : "http://${google_compute_forwarding_rule.global-lb.ip_address}:4646"}'
-      alias grafana-ui='open ${var.dns_zone != "" ? "http://${trimsuffix(google_dns_record_set.grafana[0].name, ".")}:3000" : "http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:3000"}'
+      alias grafana-ui='open http://${google_compute_forwarding_rule.clients-lb[0].ip_address}:3000'
     EOT
     
     powershell_export = <<-EOT

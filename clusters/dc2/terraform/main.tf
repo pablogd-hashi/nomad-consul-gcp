@@ -210,8 +210,6 @@ resource "google_compute_managed_ssl_certificate" "monitoring_ssl" {
   managed {
     domains = [
       trimsuffix(google_dns_record_set.traefik[0].name, "."),
-      trimsuffix(google_dns_record_set.grafana[0].name, "."),
-      trimsuffix(google_dns_record_set.prometheus[0].name, "."),
       trimsuffix(google_dns_record_set.consul[0].name, "."),
       trimsuffix(google_dns_record_set.dns[0].name, ".")
     ]
