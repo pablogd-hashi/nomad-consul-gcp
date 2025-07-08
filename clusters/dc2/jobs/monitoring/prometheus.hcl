@@ -35,7 +35,7 @@ scrape_configs:
 
   - job_name: 'nomad-servers'
     static_configs:
-    - targets: ['{{ env "NOMAD_IP_prometheus_ui" }}:4646']
+    - targets: ['localhost:4646']
     metrics_path: /v1/metrics
     params:
       format: ['prometheus']
@@ -43,7 +43,7 @@ scrape_configs:
 
   - job_name: 'nomad-clients'
     static_configs: 
-    - targets: ['{{ env "NOMAD_IP_prometheus_ui" }}:4646']
+    - targets: ['localhost:4646']
     metrics_path: /v1/metrics
     params:
       format: ['prometheus']
@@ -51,7 +51,7 @@ scrape_configs:
 
   - job_name: 'consul'
     static_configs:
-    - targets: ['{{ env "NOMAD_IP_prometheus_ui" }}:8500']
+    - targets: ['localhost:8500']
     metrics_path: /v1/agent/metrics
     params:
       format: ['prometheus']

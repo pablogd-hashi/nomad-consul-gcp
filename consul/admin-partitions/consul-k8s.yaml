@@ -1,0 +1,70 @@
+global:
+  enabled: false
+  datacenter: dc1
+  name: consul
+  image: hashicorp/consul-enterprise:1.18.3
+  imageK8S: hashicorp/consul-k8s-control-plane:1.4.4
+  logLevel: debug
+  tls:
+    enabled: false
+  acls:
+    manageSystemACLs: true
+    bootstrapToken:
+      secretName: consul-bootstrap-token
+      secretKey: key
+# adminPartitions:
+#   enabled: true
+#   name: web
+  metrics:
+    enabled: true
+    enableGatewayMetrics: true
+  enableConsulNamespaces: true
+  enterpriseLicense:
+    secretName: consul-ent-license
+    secretKey: key
+externalServers:
+  enabled: true
+  hosts: ['10.5.0.23', '10.5.1.28', '10.5.0.215', '10.5.0.127', '10.5.1.8', '10.5.0.160']
+  tlsServerName: null
+  httpsPort: 8500
+  k8sAuthMethodHost: 'https://k8s-ap-2:6443'
+
+syncCatalog:
+  enabled: true
+# toConsul: true
+# toK8S: false
+# k8sAllowNamespaces: ['*']
+# k8sDenyNamespaces: ['kube-system', 'kube-public', 'kube-node-lease']
+# consulNamespaces:
+#     mirroringK8s: true
+# addK8SNamespaceSuffix: false
+# syncClusterIPServices: true
+# ingress:
+#   enabled: null
+#   loadBalancerIPs: null
+# nodePortSyncType: ExternalFirst
+
+meshGateway:
+  enabled: true
+  enableHealthChecks: false
+  replicas: 1
+  service:
+    enabled: true
+    type: NodePort
+    nodePort: 32443
+
+connectInject:
+  transparentProxy:
+    defaultEnabled: true
+  enabled: true
+  consulNamespaces:
+    mirroringK8S: true
+  apiGateway:
+    managedGatewayClass:
+      serviceType: NodePort
+      nodeSelector: |
+        kubernetes.io/hostname: "server"
+
+dns:
+  enabled: true
+

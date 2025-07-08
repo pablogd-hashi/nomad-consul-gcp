@@ -59,7 +59,7 @@ node_meta = {
 encrypt = "$(cat $CONSUL_DIR/keygen.out)"
 retry_join = ["provider=gce project_name=${gcp_project} tag_value=${tag} zone_pattern=\"${zone}-[a-z]\""]
 license_path = "$CONSUL_DIR/license.hclic"
-log_level = "DEBUG"
+log_level = "TRACE"
 
 tls {
    defaults {
@@ -109,6 +109,11 @@ reporting {
   license {
     enabled = false
   }
+}
+
+metrics {
+  enabled = true
+  enableAgentMetrics = true
 }
 
 
