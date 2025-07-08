@@ -42,12 +42,12 @@ sudo groupadd docker
 sudo usermod -aG docker $USER
 
 # Downloading Nomad Enterprise binary according to the version specified in the variables
-curl -s -O ${NOMAD_URL}/${NOMAD_VERSION}+ent/nomad_${NOMAD_VERSION}+ent_${OS_SUFFIX}.zip
-curl -s -O ${NOMAD_URL}/${NOMAD_VERSION}+ent/nomad_${NOMAD_VERSION}+ent_SHA256SUMS
-curl -s -O ${NOMAD_URL}/${NOMAD_VERSION}+ent/nomad_${NOMAD_VERSION}+ent_SHA256SUMS.sig
+curl -s -O ${NOMAD_URL}/${NOMAD_VERSION}/nomad_${NOMAD_VERSION}_${OS_SUFFIX}.zip
+curl -s -O ${NOMAD_URL}/${NOMAD_VERSION}/nomad_${NOMAD_VERSION}_SHA256SUMS
+curl -s -O ${NOMAD_URL}/${NOMAD_VERSION}/nomad_${NOMAD_VERSION}_SHA256SUMS.sig
 
 # Installing Nomad Enterprise binary and configuring 
-unzip -o nomad_${NOMAD_VERSION}+ent_${OS_SUFFIX}.zip
+unzip -o nomad_${NOMAD_VERSION}_${OS_SUFFIX}.zip
 sudo chown root:root nomad
 sudo mv nomad /usr/bin/
 nomad --version

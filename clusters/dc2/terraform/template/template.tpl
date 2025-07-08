@@ -111,11 +111,6 @@ reporting {
   }
 }
 
-metrics {
-  enabled = true
-  enableAgentMetrics = true
-}
-
 
 EOF
 

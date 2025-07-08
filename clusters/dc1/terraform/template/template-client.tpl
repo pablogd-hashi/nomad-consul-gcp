@@ -127,11 +127,6 @@ reporting {
   }
 }
 
-metrics {
-  enabled = true
-  enableAgentMetrics = true
-}
-
 
 partition ="${partition}"
 
@@ -221,6 +216,7 @@ acl  {
   enabled = true
 }
 consul {
+  enabled = true
   token = "${bootstrap_token}"
   
   service_identity {

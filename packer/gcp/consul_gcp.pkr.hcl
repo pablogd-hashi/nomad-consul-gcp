@@ -32,8 +32,10 @@ variable "hcp_bucket_name" {
 }
 
 locals {
-  consul_version = regex_replace(var.consul_version,"\\.+|\\+","-")
-  nomad_version = regex_replace(var.nomad_version,"\\.+|\\+","-")
+  consul_version = var.consul_version
+  nomad_version = var.nomad_version
+  consul_version_safe = regex_replace(var.consul_version,"\\.+|\\+","-")
+  nomad_version_safe = regex_replace(var.nomad_version,"\\.+|\\+","-")
 }
 
 packer {
@@ -47,7 +49,7 @@ packer {
 source "googlecompute" "consul_nomad" {
   project_id = var.gcp_project
   source_image_family = var.source_image_family
-  image_name = "${var.image}-${local.consul_version}-${local.nomad_version}"
+  image_name = "${var.image}-${local.consul_version_safe}-${local.nomad_version_safe}"
   image_family = var.image_family
   machine_type = "n2-standard-2"
   # disk_size = 50

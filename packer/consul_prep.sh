@@ -55,12 +55,12 @@ sudo usermod -aG docker $USER
 newgrp docker 
 
 # Downloading Consul Enterprise binary according to the version specified in the variables
-curl -s -O ${CONSUL_URL}/${CONSUL_VERSION}+ent/consul_${CONSUL_VERSION}+ent_${OS_SUFFIX}.zip
-curl -s -O ${CONSUL_URL}/${CONSUL_VERSION}+ent/consul_${CONSUL_VERSION}+ent_SHA256SUMS
-curl -s -O ${CONSUL_URL}/${CONSUL_VERSION}+ent/consul_${CONSUL_VERSION}+ent_SHA256SUMS.sig
+curl -s -O ${CONSUL_URL}/${CONSUL_VERSION}/consul_${CONSUL_VERSION}_${OS_SUFFIX}.zip
+curl -s -O ${CONSUL_URL}/${CONSUL_VERSION}/consul_${CONSUL_VERSION}_SHA256SUMS
+curl -s -O ${CONSUL_URL}/${CONSUL_VERSION}/consul_${CONSUL_VERSION}_SHA256SUMS.sig
 
 # Installing Consul Enterprise binary and configuring 
-unzip -o consul_${CONSUL_VERSION}+ent_${OS_SUFFIX}.zip
+unzip -o consul_${CONSUL_VERSION}_${OS_SUFFIX}.zip
 sudo chown root:root consul
 sudo mv consul /usr/bin/
 consul --version
