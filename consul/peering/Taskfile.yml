@@ -1,8 +1,8 @@
 version: '3'
 
 vars:
-  DC1_NAME: dc1
-  DC2_NAME: dc2
+  DC1_NAME: gcp-dc1
+  DC2_NAME: gcp-dc2
   PEER_DC1_NAME: gcp-dc1-default
   PEER_DC2_NAME: gcp-dc2-default
 
@@ -55,10 +55,34 @@ tasks:
     desc: "Deploy mesh gateways on both clusters"
     deps: [deploy-mesh-gateway-dc1, deploy-mesh-gateway-dc2]
 
+  configure-mesh-acls:
+    desc: "Configure mesh gateway ACLs on both clusters"
+    deps: [configure-mesh-acls-dc1, configure-mesh-acls-dc2]
+
+  configure-mesh-acls-dc1:
+    desc: "Configure mesh gateway ACLs on DC1"
+    cmds:
+      - consul acl policy create -name mesh-gateway -description "Policy for the Mesh Gateways" -rules @mesh-acl.hcl
+      - consul acl role create -name mesh-gateway-role -description "A role for the MGW policies" -policy-name mesh-gateway
+      - consul acl binding-rule create -method nomad-workloads -bind-type role -bind-name mesh-gateway-role -selector 'value.nomad_service=="mesh-gateway"'
+    env:
+      CONSUL_HTTP_ADDR: "{{.DC1_CONSUL_ADDR}}"
+      CONSUL_HTTP_TOKEN: "{{.DC1_CONSUL_TOKEN}}"
+
+  configure-mesh-acls-dc2:
+    desc: "Configure mesh gateway ACLs on DC2"
+    cmds:
+      - consul acl policy create -name mesh-gateway -description "Policy for the Mesh Gateways" -rules @mesh-acl.hcl
+      - consul acl role create -name mesh-gateway-role -description "A role for the MGW policies" -policy-name mesh-gateway
+      - consul acl binding-rule create -method nomad-workloads -bind-type role -bind-name mesh-gateway-role -selector 'value.nomad_service=="mesh-gateway"'
+    env:
+      CONSUL_HTTP_ADDR: "{{.DC2_CONSUL_ADDR}}"
+      CONSUL_HTTP_TOKEN: "{{.DC2_CONSUL_TOKEN}}"
+
   deploy-mesh-gateway-dc1:
     desc: "Deploy mesh gateway on DC1"
     cmds:
-      - nomad run -var datacenter={{.DC1_NAME}} configs/mesh-gateway.hcl
+      - nomad run -var datacenter={{.DC1_NAME}} mesh-gateway.hcl
     env:
       NOMAD_ADDR: "{{.DC1_NOMAD_ADDR}}"
       NOMAD_TOKEN: "{{.DC1_NOMAD_TOKEN}}"
@@ -66,7 +90,7 @@ tasks:
   deploy-mesh-gateway-dc2:
     desc: "Deploy mesh gateway on DC2"
     cmds:
-      - nomad run -var datacenter={{.DC2_NAME}} configs/mesh-gateway.hcl
+      - nomad run -var datacenter={{.DC2_NAME}} mesh-gateway.hcl
     env:
       NOMAD_ADDR: "{{.DC2_NOMAD_ADDR}}"
       NOMAD_TOKEN: "{{.DC2_NOMAD_TOKEN}}"
@@ -98,7 +122,7 @@ tasks:
   deploy-backend:
     desc: "Deploy backend services on DC2"
     cmds:
-      - nomad run -var datacenter={{.DC2_NAME}} -var replicas_public=2 -var replicas_private=2 ../nomad-apps/demo-fake-service/backend.nomad.hcl
+      - nomad run -var datacenter={{.DC2_NAME}} -var replicas_public=2 -var replicas_private=2 ../../nomad-apps/demo-fake-service/backend.nomad.hcl
     env:
       NOMAD_ADDR: "{{.DC2_NOMAD_ADDR}}"
       NOMAD_TOKEN: "{{.DC2_NOMAD_TOKEN}}"
@@ -107,7 +131,7 @@ tasks:
   deploy-frontend:
     desc: "Deploy frontend service on DC1"
     cmds:
-      - nomad run -var datacenter={{.DC1_NAME}} ../nomad-apps/demo-fake-service/frontend.nomad.hcl
+      - nomad run -var datacenter={{.DC1_NAME}} ../../nomad-apps/demo-fake-service/frontend.nomad.hcl
     env:
       NOMAD_ADDR: "{{.DC1_NOMAD_ADDR}}"
       NOMAD_TOKEN: "{{.DC1_NOMAD_TOKEN}}"
@@ -178,7 +202,7 @@ tasks:
   deploy-api-gateway:
     desc: "Deploy API Gateway on DC1"
     cmds:
-      - nomad run ../nomad-apps/api-gw.nomad/api-gw.nomad.hcl
+      - nomad run ../../nomad-apps/api-gw.nomad/api-gw.nomad.hcl
       - consul config write configs/api-gateway/listener.hcl
       - consul config write configs/api-gateway/httproute.hcl
       - consul config write configs/intentions/front-intentions.hcl
@@ -187,6 +211,61 @@ tasks:
       NOMAD_TOKEN: "{{.DC1_NOMAD_TOKEN}}"
       CONSUL_HTTP_ADDR: "{{.DC1_CONSUL_ADDR}}"
       CONSUL_HTTP_TOKEN: "{{.DC1_CONSUL_TOKEN}}"
+
+  # Phase 11: Configure Service Defaults
+  configure-service-defaults:
+    desc: "Configure service defaults on both clusters"
+    deps: [configure-service-defaults-dc1, configure-service-defaults-dc2]
+
+  configure-service-defaults-dc1:
+    desc: "Configure service defaults on DC1"
+    cmds:
+      - consul config write configs/servicedefaults/service-defaults-frontend.hcl
+      - consul config write configs/servicedefaults/service-defaults-private-api.hcl
+      - consul config write configs/servicedefaults/service-defaults-public-api.hcl
+    env:
+      CONSUL_HTTP_ADDR: "{{.DC1_CONSUL_ADDR}}"
+      CONSUL_HTTP_TOKEN: "{{.DC1_CONSUL_TOKEN}}"
+
+  configure-service-defaults-dc2:
+    desc: "Configure service defaults on DC2"
+    cmds:
+      - consul config write configs/servicedefaults/service-defaults-private-api.hcl
+      - consul config write configs/servicedefaults/service-defaults-public-api.hcl
+    env:
+      CONSUL_HTTP_ADDR: "{{.DC2_CONSUL_ADDR}}"
+      CONSUL_HTTP_TOKEN: "{{.DC2_CONSUL_TOKEN}}"
+
+  # Phase 12: Configure Failover Options
+  configure-service-resolver:
+    desc: "Configure service resolver for failover on DC1"
+    cmds:
+      - consul config write public-api-resolver.hcl
+    env:
+      CONSUL_HTTP_ADDR: "{{.DC1_CONSUL_ADDR}}"
+      CONSUL_HTTP_TOKEN: "{{.DC1_CONSUL_TOKEN}}"
+
+  configure-sameness-groups:
+    desc: "Configure sameness groups on both clusters"
+    deps: [configure-sameness-groups-dc1, configure-sameness-groups-dc2]
+
+  configure-sameness-groups-dc1:
+    desc: "Configure sameness groups on DC1"
+    cmds:
+      - consul config write configs/sameness-groups/sg-dc1.hcl
+      - consul config write configs/sameness-groups/default-exported-sg.hcl
+      - consul config write configs/sameness-groups/public-api-intentions-sg.hcl
+    env:
+      CONSUL_HTTP_ADDR: "{{.DC1_CONSUL_ADDR}}"
+      CONSUL_HTTP_TOKEN: "{{.DC1_CONSUL_TOKEN}}"
+
+  configure-sameness-groups-dc2:
+    desc: "Configure sameness groups on DC2"
+    cmds:
+      - consul config write configs/sameness-groups/sg-dc2.hcl
+    env:
+      CONSUL_HTTP_ADDR: "{{.DC2_CONSUL_ADDR}}"
+      CONSUL_HTTP_TOKEN: "{{.DC2_CONSUL_TOKEN}}"
 
   # Complete Setup Tasks
   setup-peering:
@@ -198,19 +277,22 @@ tasks:
       - echo "=== Phase 2: Create Namespace (DC1) ==="
       - task: create-namespace
       - echo ""
-      - echo "=== Phase 3: Deploy Mesh Gateways ==="
+      - echo "=== Phase 3: Configure Mesh Gateway ACLs ==="
+      - task: configure-mesh-acls
+      - echo ""
+      - echo "=== Phase 4: Deploy Mesh Gateways ==="
       - task: deploy-mesh-gateways
       - echo ""
-      - echo "=== Phase 4: Configure Service Mesh ==="
+      - echo "=== Phase 5: Configure Service Mesh ==="
       - task: configure-mesh
       - echo ""
-      - echo "=== Phase 5: Deploy Backend (DC2) ==="
+      - echo "=== Phase 6: Deploy Backend (DC2) ==="
       - task: deploy-backend
       - echo ""
-      - echo "=== Phase 6: Deploy Frontend (DC1) ==="
+      - echo "=== Phase 7: Deploy Frontend (DC1) ==="
       - task: deploy-frontend
       - echo ""
-      - echo "=== Phase 7: Generate Peering Token ==="
+      - echo "=== Phase 8: Generate Peering Token ==="
       - task: generate-peering-token
       - echo ""
       - echo "Now run: 'task establish-peering' to accept the peering"
@@ -219,14 +301,20 @@ tasks:
   complete-peering:
     desc: "Complete peering setup after token exchange"
     cmds:
-      - echo "=== Phase 8: Export Services ==="
+      - echo "=== Phase 9: Export Services ==="
       - task: export-services
       - echo ""
-      - echo "=== Phase 9: Configure Intentions ==="
+      - echo "=== Phase 10: Configure Intentions ==="
       - task: configure-intentions
       - echo ""
-      - echo "=== Phase 10: Deploy API Gateway ==="
+      - echo "=== Phase 11: Deploy API Gateway ==="
       - task: deploy-api-gateway
+      - echo ""
+      - echo "=== Phase 12 (Optional): Configure Service Defaults ==="
+      - task: configure-service-defaults
+      - echo ""
+      - echo "=== Phase 13 (Optional): Choose Failover Strategy ==="
+      - echo "Run either 'task configure-service-resolver' OR 'task configure-sameness-groups'"
       - echo ""
       - echo "=== Setup Complete! ==="
       - task: verify-setup

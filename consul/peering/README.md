@@ -40,17 +40,40 @@ consul acl binding-rule create \
     -selector '"nomad_service" not in value and value.nomad_namespace==ingress'
 ```
 
-### Phase 3: Deploy Mesh Gateways
+### Phase 3: Configure Mesh Gateway ACLs
+
+Execute on **both DC1 and DC2**:
+
+```bash
+# Create ACL policy for Mesh Gateways
+consul acl policy create -name mesh-gateway \
+  -description "Policy for the Mesh Gateways" \
+  -rules @mesh-acl.hcl
+
+# Create ACL role for mesh gateways
+consul acl role create -name mesh-gateway-role \
+  -description "A role for the MGW policies" \
+  -policy-name mesh-gateway
+
+# Create binding rule for mesh gateway workloads
+consul acl binding-rule create \
+  -method nomad-workloads \
+  -bind-type role \
+  -bind-name mesh-gateway-role \
+  -selector 'value.nomad_service=="mesh-gateway"'
+```
+
+### Phase 4: Deploy Mesh Gateways
 
 Execute on **both DC1 and DC2**:
 
 ```bash
 # Deploy mesh gateway for cross-datacenter communication
-nomad run -var datacenter=dc1 configs/mesh-gateway.hcl  # On DC1
-nomad run -var datacenter=dc2 configs/mesh-gateway.hcl  # On DC2
+nomad run -var datacenter=gcp-dc1 mesh-gateway.hcl  # On DC1
+nomad run -var datacenter=gcp-dc2 mesh-gateway.hcl  # On DC2
 ```
 
-### Phase 4: Configure Service Mesh
+### Phase 5: Configure Service Mesh
 
 Execute on **both DC1 and DC2**:
 
@@ -68,7 +91,7 @@ Execute on **DC2 only**:
 
 ```bash
 # Deploy backend services
-nomad run -var datacenter=dc2 -var replicas_public=2 -var replicas_private=2 demo-fake-service/backend.nomad.hcl
+nomad run -var datacenter=gcp-dc2 -var replicas_public=2 -var replicas_private=2 ../../nomad-apps/demo-fake-service/backend.nomad.hcl
 ```
 
 ### Phase 6: Deploy Frontend Service (DC1 Only)
@@ -77,7 +100,7 @@ Execute on **DC1 only**:
 
 ```bash
 # Deploy frontend service
-nomad run -var datacenter=dc1 demo-fake-service/frontend.nomad.hcl
+nomad run -var datacenter=gcp-dc1 ../../nomad-apps/demo-fake-service/frontend.nomad.hcl
 ```
 
 ### Phase 7: Establish Cluster Peering
@@ -132,7 +155,7 @@ Execute on **DC1 only**:
 
 ```bash
 # Deploy API Gateway
-nomad run api-gw.nomad.hcl
+nomad run ../../nomad-apps/api-gw.nomad/api-gw.nomad.hcl
 
 # Configure API Gateway listener
 consul config write configs/api-gateway/listener.hcl
@@ -142,6 +165,43 @@ consul config write configs/api-gateway/httproute.hcl
 
 # Enable API Gateway to frontend intentions
 consul config write configs/intentions/front-intentions.hcl
+```
+
+### Phase 11: Configure Service Defaults (Optional)
+
+Execute on **both DC1 and DC2** if needed:
+
+```bash
+# Configure service defaults for better traffic management
+consul config write configs/servicedefaults/service-defaults-frontend.hcl
+consul config write configs/servicedefaults/service-defaults-private-api.hcl
+consul config write configs/servicedefaults/service-defaults-public-api.hcl
+```
+
+### Phase 12: Configure Failover (Choose One Option)
+
+**Option A: Service Resolvers**
+
+Execute on **DC1**:
+```bash
+# Configure service resolver for failover
+consul config write public-api-resolver.hcl
+```
+
+**Option B: Sameness Groups (Recommended)**
+
+Execute on **DC1**:
+```bash
+# Configure sameness groups for DC1
+consul config write configs/sameness-groups/sg-dc1.hcl
+consul config write configs/sameness-groups/default-exported-sg.hcl
+consul config write configs/sameness-groups/public-api-intentions-sg.hcl
+```
+
+Execute on **DC2**:
+```bash
+# Configure sameness groups for DC2
+consul config write configs/sameness-groups/sg-dc2.hcl
 ```
 
 ## Verification

@@ -23,7 +23,7 @@ resource "google_compute_instance_template" "instance_template" {
   machine_type = var.gcp_instance
   region       = var.gcp_region
 
-  tags = [var.cluster_name, var.owner, "nomad-${var.cluster_name}"]
+  tags = [var.cluster_name, var.owner, "nomad-${var.cluster_name}", "consul-${var.cluster_name}"]
 
   // boot disk
   disk {
@@ -56,7 +56,7 @@ resource "google_compute_instance_template" "instance_template_clients" {
   machine_type = var.gcp_instance
   region       = var.gcp_region
 
-  tags = [var.cluster_name, var.owner, "nomad-${var.cluster_name}"]
+  tags = [var.cluster_name, var.owner, "nomad-${var.cluster_name}", "consul-${var.cluster_name}"]
 
   // boot disk
   disk {

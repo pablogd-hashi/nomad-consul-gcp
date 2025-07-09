@@ -1,0 +1,50 @@
+# consul-west-values.yaml
+global:
+  name: consul
+  datacenter: dc1
+  adminPartitions:
+    enabled: true
+    name: "k8s-west"
+  
+  # External servers
+  server:
+    enabled: false
+  
+  # Connect to external Consul servers
+  externalServers:
+    enabled: true
+    hosts: ["34.78.193.136","104.155.76.9","35.233.57.96"]
+    httpsPort: 8500
+    grpcPort: 8502
+    tlsServerName: "consul.service.consul"
+    useSystemRoots: false
+    k8sAuthMethodHost: "https://cluster-west-k8s-api:6443"
+  
+  acls:
+    manageSystemACLs: false
+    bootstrapToken:
+      secretName: consul-bootstrap-token
+      secretKey: token
+  
+  tls:
+    enabled: false
+
+client:
+  enabled: true
+  grpc: true
+  exposeGossipPorts: true
+  join: ["34.78.193.136","104.155.76.9","35.233.57.96"]
+
+connectInject:
+  enabled: true
+  default: false
+  transparentProxy:
+    defaultEnabled: false
+  consulNamespaces:
+    consulDestinationNamespace: "development"  # default namespace
+    mirroringK8S: false
+
+apiGateway:
+  enabled: true
+  managedGatewayClass:
+    enabled: true

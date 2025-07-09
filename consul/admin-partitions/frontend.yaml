@@ -1,0 +1,65 @@
+# Service to expose service-a
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+spec:
+  selector:
+    app: frontend
+  type: LoadBalancer
+  ports:
+  - name: http
+    protocol: TCP
+    port: 8080
+    targetPort: 9090
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: frontend
+---
+# service-a
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels:
+    app: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+      annotations:
+        "consul.hashicorp.com/connect-inject": "true"
+        # "consul.hashicorp.com/transparent-proxy": "false"
+        # "consul.hashicorp.com/connect-service-upstreams": "backend.default.default:9091,backend-v2.default.default:9092"
+    spec:
+      serviceAccountName: frontend
+      containers:
+      - name: frontend
+        image: nicholasjackson/fake-service:v0.25.1
+        ports:
+        - containerPort: 9090
+        # readinessProbe:
+        #   httpGet:
+        #     port: 9090
+        #     path: /healthz
+        #   periodSeconds: 5
+        env:
+        - name: "LISTEN_ADDR"
+          value: "0.0.0.0:9090"
+        - name: "UPSTREAM_URIS"
+          # value: "http://127.0.0.1:9091" 
+          # Set value above if TProxy is off
+          value: "http://backend.virtual.dc2-default.consul:9090,http://backend.virtual.dc2-second.consul:9090"
+          #Set value above if TProxy is on: <service>.virtual.<namespace>.ns.<partition>.ap.<datacenter>.dc.<domain>                   
+        - name: "NAME"
+          value: "frontend"
+        - name: "MESSAGE"
+          value: "Hello World"
+

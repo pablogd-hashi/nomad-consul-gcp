@@ -12,9 +12,9 @@ global:
     bootstrapToken:
       secretName: consul-bootstrap-token
       secretKey: key
-# adminPartitions:
-#   enabled: true
-#   name: web
+  adminPartitions:
+    enabled: true
+    name: "k8s-east"
   metrics:
     enabled: true
     enableGatewayMetrics: true

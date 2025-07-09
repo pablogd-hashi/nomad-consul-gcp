@@ -209,6 +209,77 @@ tasks:
       - echo ""
       - task: eval-vars-dc2
 
+  get-server-ips-dc1:
+    desc: "Get external server IPs for DC1 (for Kubernetes integration)"
+    dir: "{{.DC1_DIR}}"
+    cmds:
+      - echo "=== DC1 Server External IPs ==="
+      - gcloud compute instances list --filter='name~hashi-server' --format='value(name,EXTERNAL_IP)' | head -3
+      - echo ""
+      - echo "For Kubernetes Helm values, use these IPs in externalServers.hosts:"
+      - gcloud compute instances list --filter='name~hashi-server' --format='value(EXTERNAL_IP)' | head -3 | sed 's/^/  - "/' | sed 's/$/"/'
+
+  get-server-ips-dc2:
+    desc: "Get external server IPs for DC2 (for Kubernetes integration)"
+    dir: "{{.DC2_DIR}}"
+    cmds:
+      - echo "=== DC2 Server External IPs ==="
+      - gcloud compute instances list --filter='name~hashi-server' --format='value(name,EXTERNAL_IP)' | head -3
+      - echo ""
+      - echo "For Kubernetes Helm values, use these IPs in externalServers.hosts:"
+      - gcloud compute instances list --filter='name~hashi-server' --format='value(EXTERNAL_IP)' | head -3 | sed 's/^/  - "/' | sed 's/$/"/'
+
+  get-server-ips:
+    desc: "Get external server IPs for both clusters"
+    cmds:
+      - task: get-server-ips-dc1
+      - echo ""
+      - task: get-server-ips-dc2
+
+  check-consul-grpc-dc1:
+    desc: "Check Consul gRPC connectivity on DC1"
+    dir: "{{.DC1_DIR}}"
+    cmds:
+      - echo "=== Testing Consul gRPC connectivity on DC1 ==="
+      - echo "Getting server IPs..."
+      - gcloud compute instances list --filter='name~hashi-server' --format='value(name,EXTERNAL_IP)' | head -3
+      - echo ""
+      - echo "Testing gRPC port 8502 connectivity:"
+      - |-
+        for ip in $(gcloud compute instances list --filter='name~hashi-server' --format='value(EXTERNAL_IP)' | head -3); do
+          echo "Testing $ip:8502..."
+          timeout 5 bash -c "</dev/tcp/$ip/8502" && echo "✅ Port 8502 is open on $ip" || echo "❌ Port 8502 is closed/filtered on $ip"
+        done
+      - echo ""
+      - echo "Testing HTTP port 8500 connectivity:"
+      - |-
+        for ip in $(gcloud compute instances list --filter='name~hashi-server' --format='value(EXTERNAL_IP)' | head -3); do
+          echo "Testing $ip:8500..."
+          timeout 5 bash -c "</dev/tcp/$ip/8500" && echo "✅ Port 8500 is open on $ip" || echo "❌ Port 8500 is closed/filtered on $ip"
+        done
+
+  check-consul-grpc-dc2:
+    desc: "Check Consul gRPC connectivity on DC2"
+    dir: "{{.DC2_DIR}}"
+    cmds:
+      - echo "=== Testing Consul gRPC connectivity on DC2 ==="
+      - echo "Getting server IPs..."
+      - gcloud compute instances list --filter='name~hashi-server' --format='value(name,EXTERNAL_IP)' | head -3
+      - echo ""
+      - echo "Testing gRPC port 8502 connectivity:"
+      - |-
+        for ip in $(gcloud compute instances list --filter='name~hashi-server' --format='value(EXTERNAL_IP)' | head -3); do
+          echo "Testing $ip:8502..."
+          timeout 5 bash -c "</dev/tcp/$ip/8502" && echo "✅ Port 8502 is open on $ip" || echo "❌ Port 8502 is closed/filtered on $ip"
+        done
+      - echo ""
+      - echo "Testing HTTP port 8500 connectivity:"
+      - |-
+        for ip in $(gcloud compute instances list --filter='name~hashi-server' --format='value(EXTERNAL_IP)' | head -3); do
+          echo "Testing $ip:8500..."
+          timeout 5 bash -c "</dev/tcp/$ip/8500" && echo "✅ Port 8500 is open on $ip" || echo "❌ Port 8500 is closed/filtered on $ip"
+        done
+
   # === Quick Access ===
 
   ssh-dc1-server:
@@ -248,3 +319,102 @@ tasks:
     cmds:
       - task: destroy-dc1
       - task: destroy-dc2
+
+  # === Cluster Peering ===
+
+  peering:help:
+    desc: "Show cluster peering setup instructions"
+    silent: true
+    cmds:
+      - echo "Consul Cluster Peering Setup"
+      - echo "Prerequisites - Both clusters must be deployed"
+      - echo "task peering:env-setup - Get environment setup"
+      - echo "task peering:setup - Start peering setup"
+      - echo "task peering:establish - Establish peering connection"
+      - echo "task peering:complete - Complete setup"
+      - echo "task peering:verify - Verify peering works"
+      - echo "Detailed guide at consul/peering/README.md"
+
+  peering:env-setup:
+    desc: "Show environment setup for cluster peering"
+    silent: true
+    cmds:
+      - echo "Set environment variables for cluster peering"
+      - echo "See consul/peering/README.md for detailed instructions"
+
+  peering:setup:
+    desc: "Start cluster peering setup (phases 1-8)"
+    dir: consul/peering
+    cmds:
+      - task: setup-peering
+    preconditions:
+      - sh: "[ ! -z \"$DC1_CONSUL_ADDR\" ]"
+        msg: "DC1_CONSUL_ADDR not set. Run 'task peering:env-setup' for instructions"
+      - sh: "[ ! -z \"$DC2_CONSUL_ADDR\" ]"
+        msg: "DC2_CONSUL_ADDR not set. Run 'task peering:env-setup' for instructions"
+
+  peering:establish:
+    desc: "Establish peering connection (run after setup)"
+    dir: consul/peering
+    cmds:
+      - task: establish-peering
+
+  peering:complete:
+    desc: "Complete peering setup (phases 9-13)"
+    dir: consul/peering
+    cmds:
+      - task: complete-peering
+
+  peering:verify:
+    desc: "Verify peering status and connectivity"
+    dir: consul/peering
+    cmds:
+      - task: verify-setup
+      - task: check-services
+
+  peering:sameness-groups:
+    desc: "Configure sameness groups for failover"
+    dir: consul/peering
+    cmds:
+      - task: configure-sameness-groups
+
+  peering:service-resolver:
+    desc: "Configure service resolver for failover"
+    dir: consul/peering
+    cmds:
+      - task: configure-service-resolver
+
+  peering:cleanup:
+    desc: "Clean up peering configuration"
+    dir: consul/peering
+    cmds:
+      - task: cleanup-peering
+      - task: cleanup-jobs
+
+  # === Enhanced Status and Information ===
+
+  status:
+    desc: "Show status of both clusters and peering"
+    cmds:
+      - echo "=== Infrastructure Status ==="
+      - task: check-infra
+      - echo ""
+      - echo "=== Cluster Access ==="
+      - task: show-urls
+      - echo ""
+      - echo "=== Peering Status ==="
+      - echo "Environment variables not set - run task peering env-setup"
+
+  # === Help System ===
+
+  help:
+    desc: "Show all available tasks"
+    silent: true
+    cmds:
+      - echo "HashiCorp Multi-Cluster Infrastructure"
+      - echo "Use 'task --list' to see all available tasks"
+      - echo "Main tasks - deploy-both, peering:help, status"
+
+  default:
+    cmds:
+      - task: help

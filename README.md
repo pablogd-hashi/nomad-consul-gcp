@@ -50,6 +50,17 @@ This project deploys a complete HashiCorp ecosystem with:
 This project includes a comprehensive Taskfile for easy management of single or multi-cluster deployments:
 
 ```bash
+# Show all available tasks and help
+task help
+task                    # Same as 'task help'
+
+# Show cluster peering instructions  
+task peering:help
+```
+
+### Basic Deployment Tasks
+
+```bash
 # Build HashiStack images first (REQUIRED)
 task build-images        # Build custom images with Packer
 
@@ -286,6 +297,64 @@ nomad job run nomad-apps/demo-fake-service/frontend.nomad.hcl
 consul config write consul/peering/configs/api-gateway/listener.hcl
 consul config write consul/peering/configs/api-gateway/httproute.hcl
 ```
+
+## 🔗 Consul Cluster Peering
+
+Once both clusters are deployed and running, you can configure cluster peering to enable cross-datacenter service mesh connectivity, load balancing, and failover capabilities.
+
+### Quick Peering Setup
+
+```bash
+# 1. Get environment setup instructions
+task peering:env-setup
+
+# 2. Set environment variables for both clusters (copy/paste from above)
+export DC1_CONSUL_ADDR=http://[DC1_IP]:8500
+export DC1_NOMAD_ADDR=http://[DC1_IP]:4646
+# ... etc (see output from peering:env-setup)
+
+# 3. Start peering setup (phases 1-8)
+task peering:setup
+
+# 4. Establish peering connection
+task peering:establish
+
+# 5. Complete peering configuration (phases 9-13)
+task peering:complete
+
+# 6. Verify peering works
+task peering:verify
+```
+
+### Advanced Peering Features
+
+```bash
+# Configure failover with sameness groups (recommended)
+task peering:sameness-groups
+
+# Or configure service resolver for failover
+task peering:service-resolver
+
+# Check peering status
+task status                    # Shows peering status if env vars set
+
+# Clean up peering
+task peering:cleanup
+```
+
+### What Cluster Peering Provides
+
+- **Cross-Datacenter Service Discovery**: Services in DC1 can discover and connect to services in DC2
+- **Service Mesh Connectivity**: Secure, encrypted communication between services across clusters
+- **Load Balancing**: Distribute traffic across multiple datacenters
+- **Failover**: Automatic failover to secondary datacenter when primary is unavailable
+- **API Gateway**: Single entry point routing traffic to services across both clusters
+
+### Detailed Setup Guide
+
+For detailed step-by-step instructions, including all configuration phases, troubleshooting, and advanced scenarios:
+
+📖 **[Consul Peering Setup Guide](consul/peering/README.md)**
 
 ## 🔧 Key Features
 
