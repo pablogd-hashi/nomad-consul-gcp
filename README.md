@@ -2,19 +2,6 @@
 
 A production-ready multi-cluster deployment of HashiCorp Consul Enterprise 1.21.0+ent, Nomad Enterprise 1.10.0+ent, and supporting applications on Google Cloud Platform with comprehensive monitoring, load balancing, and enterprise security features.
 
-## 🆕 Latest Updates (January 2025)
-
-**Project Restructured for Multi-Cluster Deployment:**
-- ✅ **New GCP Project**: Migrated to `hc-1031dcc8d7c24bfdbb4c08979b0` 
-- ✅ **European Regions**: DC1 (europe-southwest1) + DC2 (europe-west1)
-- ✅ **Simplified Structure**: `clusters/dc1/` and `clusters/dc2/` folders
-- ✅ **Custom Images**: Built with Packer using latest HashiStack versions
-- ✅ **HCP Terraform**: Workspace integration with `DB-cluster-1` and `DC-cluster-2`
-- ✅ **Task Automation**: Enhanced Taskfile for complete lifecycle management
-- ✅ **Load Balancer**: Fixed GCP 5-port limit, added port 8081 for API Gateway
-- ✅ **API Gateway**: Consul API Gateway deployment with Nomad integration
-- ✅ **Admin Partitions**: Dedicated GKE demo with multi-tenant isolation
-
 ## 🎯 Demo Options
 
 This project provides two complete demonstrations:
@@ -186,15 +173,32 @@ sudo nomad setup consul -y
 
 ## 🌐 Multi-Cluster Access Points
 
+### Getting Access URLs
+
+```bash
+# Show all service URLs for both clusters
+task show-urls
+
+# Get load balancer IPs for direct access
+cd clusters/dc1/terraform && terraform output load_balancers
+cd clusters/dc2/terraform && terraform output load_balancers
+```
+
 ### DC1 (europe-southwest1) Access Points
 
-#### Via Load Balancer (with DNS)
-- **Consul UI**: `http://consul-gcp-dc1.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:8500`
-- **Nomad UI**: `http://nomad-gcp-dc1.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:4646`
-- **Grafana**: `http://grafana-gcp-dc1.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:3000` (admin/admin)
-- **Traefik Dashboard**: `http://traefik-gcp-dc1.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:8080`
-- **Prometheus**: `http://prometheus-gcp-dc1.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:9090`
-- **API Gateway**: `http://<clients_lb_ip>:8081` (Routes to front-service)
+#### Via Load Balancer (with DNS - if configured)
+- **Consul UI**: `http://consul-<cluster-name>.<your-domain>:8500`
+- **Nomad UI**: `http://nomad-<cluster-name>.<your-domain>:4646`
+- **Grafana**: `http://grafana-<cluster-name>.<your-domain>:3000` (admin/admin)
+- **Traefik Dashboard**: `http://traefik-<cluster-name>.<your-domain>:8080`
+- **Prometheus**: `http://prometheus-<cluster-name>.<your-domain>:9090`
+
+#### Direct IP Access (Always Available)
+Get the load balancer IPs: `terraform output load_balancers`
+- **Global LB**: `http://<global_lb_ip>:8500` (Consul), `http://<global_lb_ip>:4646` (Nomad)
+- **Clients LB**: `http://<clients_lb_ip>:3000` (Grafana), `http://<clients_lb_ip>:8080` (Traefik)
+- **API Gateway**: `http://<clients_lb_ip>:8081`
+- **Prometheus**: `http://<clients_lb_ip>:9090`
 
 #### Direct Instance Access
 ```bash
@@ -209,16 +213,17 @@ ssh ubuntu@$(terraform output -json server_nodes | jq -r '.hashi_servers."server
 
 ### DC2 (europe-west1) Access Points
 
-#### Access Points
-- **Consul UI**: `http://consul-gcp-dc2.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:8500`
-- **Nomad UI**: `http://nomad-gcp-dc2.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:4646`
-- **Traefik Dashboard**: `http://traefik-gcp-dc2.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com:8080`
+#### Via Load Balancer (with DNS - if configured)
+- **Consul UI**: `http://consul-<cluster-name>.<your-domain>:8500`
+- **Nomad UI**: `http://nomad-<cluster-name>.<your-domain>:4646`
+- **Traefik Dashboard**: `http://traefik-<cluster-name>.<your-domain>:8080`
 
-#### Direct IP Access (Monitoring Services)
-Get the clients LB IP: `terraform output load_balancers`
-- **Grafana**: `http://<clients_lb_ip>:3000` (admin/admin)
+#### Direct IP Access (Always Available)
+Get the load balancer IPs: `terraform output load_balancers`
+- **Global LB**: `http://<global_lb_ip>:8500` (Consul), `http://<global_lb_ip>:4646` (Nomad)
+- **Clients LB**: `http://<clients_lb_ip>:3000` (Grafana), `http://<clients_lb_ip>:8080` (Traefik)
+- **API Gateway**: `http://<clients_lb_ip>:8081`
 - **Prometheus**: `http://<clients_lb_ip>:9090`
-- **API Gateway**: `http://<clients_lb_ip>:8081` (Routes to front-service)
 
 #### Direct Instance Access
 ```bash
