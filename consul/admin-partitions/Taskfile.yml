@@ -1,0 +1,170 @@
+version: '3'
+
+vars:
+  PROJECT_ID:
+    sh: gcloud config get-value project
+  CONSUL_VERSION: "1.21.2-ent"
+
+env:
+  TF_VAR_project_id: "{{.PROJECT_ID}}"
+  TF_VAR_consul_version: "{{.CONSUL_VERSION}}"
+  TF_VAR_consul_license: "${CONSUL_LICENSE}"
+
+tasks:
+  default:
+    desc: "Show available tasks"
+    cmds:
+      - task --list
+
+  validate:
+    desc: "Validate prerequisites"
+    cmds:
+      - echo "Validating prerequisites..."
+      - gcloud auth list --filter=status:ACTIVE --format="value(account)" || (echo "❌ Not authenticated with gcloud" && exit 1)
+      - echo "✅ GCloud authenticated"
+      - helm version --short || (echo "❌ Helm not found" && exit 1)
+      - echo "✅ Helm available"
+      - kubectl version --client || (echo "❌ kubectl not found" && exit 1)
+      - echo "✅ kubectl available"
+      - terraform version || (echo "❌ Terraform not found" && exit 1)
+      - echo "✅ Terraform available"
+      - test -n "$CONSUL_LICENSE" || (echo "❌ CONSUL_LICENSE environment variable not set" && exit 1)
+      - echo "✅ Consul license configured"
+      - echo "Project ID{{":"}} {{.PROJECT_ID}}"
+
+  deploy:
+    desc: "Deploy complete admin partitions demo"
+    deps: [validate]
+    cmds:
+      - echo "🚀 Deploying Consul Admin Partitions Demo..."
+      - task: deploy-server-east
+      - task: deploy-server-west
+      - task: wait-for-servers
+      - task: deploy-client-east
+      - task: deploy-client-west
+      - task: create-namespaces
+      - echo "✅ Deployment complete!"
+      - task: info
+
+  deploy-server-east:
+    desc: "Deploy Consul server cluster in us-east1"
+    dir: terraform/server-east
+    cmds:
+      - echo "📍 Deploying Consul servers in us-east1..."
+      - terraform init
+      - terraform apply -auto-approve
+
+  deploy-server-west:
+    desc: "Deploy Consul server cluster in us-west1"
+    dir: terraform/server-west
+    cmds:
+      - echo "📍 Deploying Consul servers in us-west1..."
+      - terraform init
+      - terraform apply -auto-approve
+
+  deploy-client-east:
+    desc: "Deploy admin partition client in us-east4"
+    dir: terraform/client-east
+    cmds:
+      - echo "📍 Deploying k8s-east partition in us-east4..."
+      - terraform init
+      - terraform apply -auto-approve
+
+  deploy-client-west:
+    desc: "Deploy admin partition client in us-west2"
+    dir: terraform/client-west
+    cmds:
+      - echo "📍 Deploying k8s-west partition in us-west2..."
+      - terraform init
+      - terraform apply -auto-approve
+
+  wait-for-servers:
+    desc: "Wait for Consul servers to be ready"
+    cmds:
+      - echo "⏳ Waiting for Consul servers to be ready..."
+      - sleep 60
+
+  create-namespaces:
+    desc: "Create DTAP namespaces in admin partitions"
+    cmds:
+      - echo "📁 Creating DTAP namespaces..."
+      - echo "✅ Namespaces created via Terraform"
+
+  deploy-apps:
+    desc: "Deploy demo applications to admin partitions"
+    cmds:
+      - echo "🚀 Deploying demo applications..."
+      - kubectl apply -f apps/fake-service/ --context=gke_{{.PROJECT_ID}}_us-east4_consul-client-east || true
+      - kubectl apply -f apps/fake-service/ --context=gke_{{.PROJECT_ID}}_us-west2_consul-client-west || true
+      - echo "✅ Applications deployed"
+
+  info:
+    desc: "Display cluster information and access URLs"
+    cmds:
+      - echo "📊 Cluster Information{{":"}}"}
+      - echo ""
+      - echo "🖥️  Kubectl contexts{{":"}}"}
+      - kubectl config get-contexts | grep consul || true
+      - echo ""
+      - echo "🌐 Consul Server URLs{{":"}}"}
+      - task: get-consul-urls
+      - echo ""
+      - echo "📱 Admin Partitions{{":"}}"}
+      - echo "  • k8s-east (us-east4)"
+      - echo "  • k8s-west (us-west2)"
+
+  get-consul-urls:
+    desc: "Get Consul UI URLs"
+    cmds:
+      - echo "Fetching Consul UI URLs..."
+      - echo "East{{":"}} Check GKE services for LoadBalancer IP"
+      - echo "West{{":"}} Check GKE services for LoadBalancer IP"
+
+  status:
+    desc: "Check status of all components"
+    cmds:
+      - echo "📊 Component Status{{":"}}"}
+      - echo ""
+      - echo "Consul Servers (East){{":"}}"}
+      - kubectl get pods -n consul -l component=server --context=gke_{{.PROJECT_ID}}_us-east1_consul-server-east 2>/dev/null || echo "Not deployed"
+      - echo ""
+      - echo "Consul Servers (West){{":"}}"}
+      - kubectl get pods -n consul -l component=server --context=gke_{{.PROJECT_ID}}_us-west1_consul-server-west 2>/dev/null || echo "Not deployed"
+      - echo ""
+      - echo "Admin Partition Clients (East){{":"}}"}
+      - kubectl get pods -n consul --context=gke_{{.PROJECT_ID}}_us-east4_consul-client-east 2>/dev/null || echo "Not deployed"
+      - echo ""
+      - echo "Admin Partition Clients (West){{":"}}"}
+      - kubectl get pods -n consul --context=gke_{{.PROJECT_ID}}_us-west2_consul-client-west 2>/dev/null || echo "Not deployed"
+
+  destroy:
+    desc: "Destroy all resources"
+    cmds:
+      - echo "🗑️  Destroying admin partitions demo..."
+      - echo "This will delete all resources. Press Ctrl+C to cancel or Enter to continue..."
+      - read
+      - task: destroy-clients
+      - task: destroy-servers
+      - echo "✅ All resources destroyed"
+
+  destroy-servers:
+    desc: "Destroy Consul server clusters"
+    cmds:
+      - echo "Destroying server clusters..."
+      - cd terraform/server-east && terraform destroy -auto-approve || true
+      - cd terraform/server-west && terraform destroy -auto-approve || true
+
+  destroy-clients:
+    desc: "Destroy admin partition clients" 
+    cmds:
+      - echo "Destroying partition clients..."
+      - cd terraform/client-east && terraform destroy -auto-approve || true
+      - cd terraform/client-west && terraform destroy -auto-approve || true
+
+  clean:
+    desc: "Clean Terraform state and temp files"
+    cmds:
+      - find . -name "*.tfstate*" -delete 2>/dev/null || true
+      - find . -name ".terraform" -type d -exec rm -rf {} + 2>/dev/null || true
+      - find . -name ".terraform.lock.hcl" -delete 2>/dev/null || true
+      - echo "✅ Cleaned up Terraform files"

@@ -1,0 +1,149 @@
+# Consul Enterprise Server Configuration for West Region
+global:
+  name: consul
+  image: hashicorp/consul-enterprise:${consul_version}
+  imageK8S: hashicorp/consul-k8s-control-plane:1.5.0
+  enableConsulNamespaces: true
+  adminPartitions:
+    enabled: true
+  datacenter: ${datacenter}
+  
+  # Enterprise license
+  enterpriseLicense:
+    secretName: consul-enterprise-license
+    secretKey: key
+  
+  # Gossip encryption
+  gossipEncryption:
+    secretName: consul-gossip-encryption-key
+    secretKey: key
+  
+  # TLS configuration
+  tls:
+    enabled: true
+    httpsOnly: false
+    caCert:
+      secretName: consul-ca-cert
+      secretKey: tls.crt
+    caKey:
+      secretName: consul-ca-cert
+      secretKey: tls.key
+  
+  # ACLs
+  acls:
+    manageSystemACLs: true
+    bootstrapToken:
+      secretName: consul-bootstrap-acl-token
+      secretKey: token
+
+# Server configuration
+server:
+  enabled: true
+  image: hashicorp/consul-enterprise:${consul_version}
+  replicas: 3
+  bootstrapExpected: 3
+  
+  # Enterprise license
+  enterpriseLicense:
+    secretName: consul-enterprise-license
+    secretKey: key
+  
+  # Storage
+  storage: 10Gi
+  storageClass: standard-rwo
+  
+  # Resources
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi" 
+      cpu: "500m"
+  
+  # Anti-affinity to spread servers across nodes
+  affinity: |
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app: {{ template "consul.name" . }}
+              release: "{{ .Release.Name }}"
+              component: server
+          topologyKey: kubernetes.io/hostname
+  
+  # Expose servers via LoadBalancer for admin partition clients
+  exposeService:
+    enabled: true
+    type: LoadBalancer
+    annotations:
+      cloud.google.com/backend-config: '{"default": "consul-backend-config"}'
+  
+  # Extra configuration
+  extraConfig: |
+    {
+      "log_level": "INFO",
+      "server": true,
+      "retry_join": ["provider=k8s label_selector=\"app=consul,component=server\""],
+      "ui_config": {
+        "enabled": true
+      },
+      "connect": {
+        "enabled": true
+      },
+      "ports": {
+        "grpc_tls": 8502
+      },
+      "verify_incoming": false,
+      "verify_outgoing": true,
+      "verify_server_hostname": false,
+      "ca_file": "/consul/tls/ca/tls.crt",
+      "cert_file": "/consul/tls/server/tls.crt", 
+      "key_file": "/consul/tls/server/tls.key",
+      "auto_encrypt": {
+        "allow_tls": true
+      }
+    }
+
+# Client disabled (server-only cluster)
+client:
+  enabled: false
+
+# UI
+ui:
+  enabled: true
+  service:
+    enabled: true
+    type: LoadBalancer
+
+# Connect inject
+connectInject:
+  enabled: false
+
+# Controller
+controller:
+  enabled: false
+
+# Mesh gateway  
+meshGateway:
+  enabled: false
+
+# Ingress gateway
+ingressGateways:
+  enabled: false
+
+# Terminating gateway
+terminatingGateways:
+  enabled: false
+
+# Sync catalog
+syncCatalog:
+  enabled: false
+
+# DNS
+dns:
+  enabled: false
+
+# Tests
+tests:
+  enabled: false
