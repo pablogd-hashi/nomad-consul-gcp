@@ -2,7 +2,7 @@
 global:
   name: consul
   image: hashicorp/consul-enterprise:${consul_version}
-  imageK8S: hashicorp/consul-k8s-control-plane:1.5.0
+  imageEnvoy: envoyproxy/envoy:v1.30.7
   enableConsulNamespaces: true
   adminPartitions:
     enabled: true
@@ -18,10 +18,12 @@ global:
     secretName: consul-gossip-encryption-key
     secretKey: key
   
-  # TLS configuration
+  # Modern TLS configuration
   tls:
     enabled: true
     httpsOnly: false
+    enableAutoEncrypt: true
+    verify: false
     caCert:
       secretName: consul-ca-cert
       secretKey: tls.crt
@@ -32,9 +34,6 @@ global:
   # ACLs
   acls:
     manageSystemACLs: true
-    bootstrapToken:
-      secretName: consul-bootstrap-acl-token
-      secretKey: token
 
 # Server configuration
 server:
@@ -74,7 +73,7 @@ server:
     annotations: |
       cloud.google.com/backend-config: '{"default": "consul-backend-config"}'
   
-  # Extra configuration
+  # Extra configuration using modern format
   extraConfig: |
     {
       "log_level": "INFO",
@@ -88,15 +87,6 @@ server:
       },
       "ports": {
         "grpc_tls": 8502
-      },
-      "verify_incoming": false,
-      "verify_outgoing": true,
-      "verify_server_hostname": false,
-      "ca_file": "/consul/tls/ca/tls.crt",
-      "cert_file": "/consul/tls/server/tls.crt", 
-      "key_file": "/consul/tls/server/tls.key",
-      "auto_encrypt": {
-        "allow_tls": true
       }
     }
 
@@ -113,17 +103,30 @@ ui:
 
 # Connect inject
 connectInject:
-  enabled: false
+  enabled: true
+  apiGateway:
+    manageExternalCRDs: true
 
 # Controller
 controller:
   enabled: false
 
-# Mesh gateway  
+# Mesh gateway for cross-partition communication
 meshGateway:
-  enabled: false
+  enabled: true
+  replicas: 2
+  service:
+    type: LoadBalancer
+    enabled: true
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
 
-# Ingress gateway
+# Deprecated ingress gateways - use API Gateway instead
 ingressGateways:
   enabled: false
 

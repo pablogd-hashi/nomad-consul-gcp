@@ -1,0 +1,37 @@
+# Mesh Gateway Service for Server Clusters
+apiVersion: v1
+kind: Service
+metadata:
+  name: mesh-gateway
+  namespace: consul
+  annotations:
+    # GCP Load Balancer annotations
+    cloud.google.com/load-balancer-type: "External"
+spec:
+  selector:
+    component: mesh-gateway
+    app: consul
+    release: consul
+  ports:
+    - name: wan
+      port: 443
+      targetPort: 443
+      protocol: TCP
+  type: LoadBalancer
+---
+# Mesh Gateway Configuration for Cross-Partition Communication  
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: MeshGateway
+metadata:
+  name: mesh-gateway
+  namespace: consul
+spec:
+  gatewayClassName: consul
+  listeners:
+    - name: wan
+      port: 443
+      protocol: TCP
+  # Enable cross-partition traffic
+  wan:
+    port: 443
+    bindPort: 443

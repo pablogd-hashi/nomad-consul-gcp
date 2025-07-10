@@ -198,7 +198,7 @@ resource "kubernetes_secret" "consul_gossip_key" {
   }
 
   data = {
-    key = base64encode(random_id.gossip_key.b64_std)
+    key = random_id.gossip_key.b64_std
   }
 
   type = "Opaque"
@@ -260,7 +260,7 @@ resource "helm_release" "consul" {
     templatefile("${path.module}/../../helm/server-east/values.yaml", {
       consul_version = var.consul_version
       datacenter     = "east"
-      gossip_key     = base64encode(random_id.gossip_key.b64_std)
+      gossip_key     = random_id.gossip_key.b64_std
     })
   ]
 
@@ -271,29 +271,11 @@ resource "helm_release" "consul" {
   ]
 }
 
-# Service to expose Consul UI
-resource "kubernetes_service" "consul_ui" {
+# Get the existing Consul UI service created by Helm
+data "kubernetes_service" "consul_ui" {
   metadata {
     name      = "consul-ui"
     namespace = kubernetes_namespace.consul.metadata[0].name
-    labels = {
-      app = "consul"
-    }
-  }
-
-  spec {
-    type = "LoadBalancer"
-    
-    port {
-      port        = 8500
-      target_port = 8500
-      protocol    = "TCP"
-    }
-
-    selector = {
-      app       = "consul"
-      component = "server"
-    }
   }
 
   depends_on = [helm_release.consul]

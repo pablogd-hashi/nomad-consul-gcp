@@ -16,7 +16,12 @@ output "cluster_location" {
 
 output "consul_ui_ip" {
   description = "Consul UI Load Balancer IP"
-  value       = kubernetes_service.consul_ui.status[0].load_balancer[0].ingress[0].ip
+  value       = try(data.kubernetes_service.consul_ui.status[0].load_balancer[0].ingress[0].ip, "pending")
+}
+
+output "consul_ui_url" {
+  description = "Consul UI URL"  
+  value       = "http://${try(data.kubernetes_service.consul_ui.status[0].load_balancer[0].ingress[0].ip, "pending")}:8500"
 }
 
 output "consul_ca_cert" {
@@ -33,7 +38,7 @@ output "consul_ca_key" {
 
 output "gossip_encryption_key" {
   description = "Consul gossip encryption key"
-  value       = base64encode(random_id.gossip_key.b64_std)
+  value       = random_id.gossip_key.b64_std
   sensitive   = true
 }
 

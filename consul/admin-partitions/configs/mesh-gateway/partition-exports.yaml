@@ -1,0 +1,51 @@
+# Export services from k8s-east partition to k8s-west
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ExportedServices
+metadata:
+  name: k8s-east-exports
+  namespace: consul
+spec:
+  partition: k8s-east
+  services:
+    - name: frontend
+      namespace: development
+      consumers:
+        - partition: k8s-west
+    - name: backend  
+      namespace: development
+      consumers:
+        - partition: k8s-west
+    - name: frontend
+      namespace: testing
+      consumers:
+        - partition: k8s-west
+    - name: backend
+      namespace: testing
+      consumers:
+        - partition: k8s-west
+---
+# Export services from k8s-west partition to k8s-east
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ExportedServices
+metadata:
+  name: k8s-west-exports
+  namespace: consul
+spec:
+  partition: k8s-west
+  services:
+    - name: frontend
+      namespace: development
+      consumers:
+        - partition: k8s-east
+    - name: backend
+      namespace: development  
+      consumers:
+        - partition: k8s-east
+    - name: frontend
+      namespace: testing
+      consumers:
+        - partition: k8s-east
+    - name: backend
+      namespace: testing
+      consumers:
+        - partition: k8s-east

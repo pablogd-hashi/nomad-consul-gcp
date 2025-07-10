@@ -19,7 +19,7 @@ tasks:
   validate:
     desc: "Validate prerequisites"
     cmds:
-      - echo "Validating prerequisites..."
+      - echo "🔍 Validating prerequisites..."
       - gcloud auth list --filter=status:ACTIVE --format="value(account)" || (echo "❌ Not authenticated with gcloud" && exit 1)
       - echo "✅ GCloud authenticated"
       - helm version --short || (echo "❌ Helm not found" && exit 1)
@@ -28,8 +28,13 @@ tasks:
       - echo "✅ kubectl available"
       - terraform version || (echo "❌ Terraform not found" && exit 1)
       - echo "✅ Terraform available"
-      - test -n "$CONSUL_LICENSE" || (echo "❌ CONSUL_LICENSE environment variable not set" && exit 1)
-      - echo "✅ Consul license configured"
+      - |
+        if [ -z "$CONSUL_LICENSE" ]; then
+          echo "❌ CONSUL_LICENSE environment variable is not set"
+          echo "Please run: export CONSUL_LICENSE=\"your-license-here\""
+          exit 1
+        fi
+      - echo "✅ CONSUL_LICENSE is set (${#CONSUL_LICENSE} characters)"
       - echo "Project ID{{":"}} {{.PROJECT_ID}}"
 
   deploy:
@@ -52,7 +57,7 @@ tasks:
     cmds:
       - echo "📍 Deploying Consul servers in us-east1..."
       - terraform init
-      - terraform apply -auto-approve
+      - terraform apply -auto-approve -var="consul_license=${CONSUL_LICENSE}" -var="project_id=${PROJECT_ID:-hc-1031dcc8d7c24bfdbb4c08979b0}"
 
   deploy-server-west:
     desc: "Deploy Consul server cluster in us-west1"
@@ -60,7 +65,7 @@ tasks:
     cmds:
       - echo "📍 Deploying Consul servers in us-west1..."
       - terraform init
-      - terraform apply -auto-approve
+      - terraform apply -auto-approve -var="consul_license=${CONSUL_LICENSE}" -var="project_id=${PROJECT_ID:-hc-1031dcc8d7c24bfdbb4c08979b0}"
 
   deploy-client-east:
     desc: "Deploy admin partition client in us-east4"
@@ -116,9 +121,22 @@ tasks:
   get-consul-urls:
     desc: "Get Consul UI URLs"
     cmds:
-      - echo "Fetching Consul UI URLs..."
-      - echo "East{{":"}} Check GKE services for LoadBalancer IP"
-      - echo "West{{":"}} Check GKE services for LoadBalancer IP"
+      - |
+        echo "📍 Server East (us-east1):"
+        if cd terraform/server-east && terraform output consul_ui_url &>/dev/null; then
+          echo "  Consul UI: $(terraform output -raw consul_ui_url)"
+          echo "  Cluster: $(terraform output -raw cluster_name)"
+        else
+          echo "  Status: not deployed"
+        fi
+      - |
+        echo "📍 Server West (us-west1):"
+        if cd terraform/server-west && terraform output consul_ui_url &>/dev/null; then
+          echo "  Consul UI: $(terraform output -raw consul_ui_url)"
+          echo "  Cluster: $(terraform output -raw cluster_name)"
+        else
+          echo "  Status: not deployed"
+        fi
 
   status:
     desc: "Check status of all components"

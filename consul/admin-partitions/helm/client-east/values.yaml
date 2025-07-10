@@ -3,7 +3,7 @@ global:
   name: consul
   enabled: false
   image: hashicorp/consul-enterprise:${consul_version}
-  imageK8S: hashicorp/consul-k8s-control-plane:1.5.0
+  imageEnvoy: envoyproxy/envoy:v1.30.7
   enableConsulNamespaces: true
   
   # Admin partition configuration
@@ -64,6 +64,8 @@ ui:
 # Connect inject
 connectInject:
   enabled: true
+  apiGateway:
+    manageExternalCRDs: true
   consulNamespaces:
     mirroringK8S: true
   
@@ -102,22 +104,9 @@ meshGateway:
       memory: "256Mi"
       cpu: "200m"
 
-# Ingress gateway for external traffic
+# Deprecated ingress gateways - use API Gateway instead
 ingressGateways:
-  enabled: true
-  defaults:
-    replicas: 1
-    service:
-      type: LoadBalancer
-    resources:
-      requests:
-        memory: "128Mi"
-        cpu: "100m"
-      limits:
-        memory: "256Mi"
-        cpu: "200m"
-  gateways:
-    - name: ingress-gateway
+  enabled: false
 
 # Terminating gateway for external services
 terminatingGateways:
