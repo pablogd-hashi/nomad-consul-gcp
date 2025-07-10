@@ -531,79 +531,66 @@ task deploy-both
 # Check status in GCP Console > Compute Engine > Instance Groups
 ```
 
-## 🔄 Migration and Current State
-
-This project has been recently migrated and updated with:
-
-### Current Configuration (January 2025)
-- **GCP Project**: `hc-1031dcc8d7c24bfdbb4c08979b0`
-- **Service Account**: `hc-1031dcc8d7c24bfdbb4c08979b0@appspot.gserviceaccount.com`
-- **DNS Zone**: `doormat-accountid`
-- **DNS Domain**: `hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com`
-- **DC1 Region**: `europe-southwest1` (zones: a, b)
-- **DC2 Region**: `europe-west1` (zones: b, c)
-
-### HCP Terraform Workspaces
-- **DC1**: `pablogd-hcp-test/DB-cluster-1`
-- **DC2**: `pablogd-hcp-test/DC-cluster-2`
-
-### Built Images
-Custom HashiStack images built with Packer containing:
-- **Consul Enterprise**: 1.21.0+ent
-- **Nomad Enterprise**: 1.10.0+ent
-- **Vault**: 1.14.1
-- **Docker**: Latest
-- **TLS Configuration**: Pre-configured certificates
-
-### Deployment Status
-✅ **Packer Images**: Built successfully in new project  
-🔄 **DC1 Infrastructure**: Currently deploying  
-⏳ **DC2 Infrastructure**: Pending DC1 completion  
-⏳ **Consul-Nomad Integration**: Required after infrastructure  
-⏳ **Application Deployment**: Traefik + Monitoring stack  
-
 ## 📁 Multi-Cluster Project Structure
 
 ```
 ├── Taskfile.yml                      # Task automation for multi-cluster management
 ├── docs/                              # Documentation and assets
 │   └── images/                        # Architecture diagrams and images
-├── clusters/
-│   ├── dc1/                        # DC1 cluster (europe-southwest1)
-│   │   ├── terraform/              # DC1 infrastructure
-│   │   │   ├── main.tf             # Core networking, load balancers, DNS
-│   │   │   ├── instances.tf        # Instance groups, templates, configs
-│   │   │   ├── variables.tf        # Input variables
-│   │   │   ├── outputs.tf          # Structured outputs
-│   │   │   └── consul.tf           # Consul-specific resources
-│   │   └── jobs/                   # DC1 Nomad job definitions
-│   │       └── monitoring/         # Monitoring stack jobs
-│   │           ├── traefik.hcl     # Load balancer
-│   │           ├── prometheus.hcl  # Metrics collection
-│   │           └── grafana.hcl     # Monitoring dashboard
-│   └── dc2/                        # DC2 cluster (europe-west1)
-│       ├── terraform/              # DC2 infrastructure (identical to DC1)
-│       └── jobs/                   # DC2 Nomad job definitions (identical to DC1)
-├── packer/                         # Custom image builds
-│   └── gcp/                       # GCP-specific Packer configs
-├── nomad-apps/                   # Application definitions
-│   ├── api-gw.nomad/             # Consul API Gateway
-│   │   └── api-gw.nomad.hcl      # API Gateway Nomad job
-│   ├── demo-fake-service/        # Demo microservices
-│   │   ├── backend.nomad.hcl     # Backend API services
-│   │   └── frontend.nomad.hcl    # Frontend service
-│   ├── monitoring/               # Monitoring stack
-│   │   ├── traefik.hcl          # Load balancer
-│   │   ├── prometheus.hcl       # Metrics collection
-│   │   └── grafana.hcl          # Monitoring dashboard
-│   └── terramino.hcl            # Demo Tetris game
-├── consul/                       # Consul configurations
-│   └── peering/                  # Consul Connect and API Gateway configs
+├── clusters/                          # Nomad + Consul on GCE
+│   ├── dc1/                          # DC1 cluster (europe-southwest1)
+│   │   ├── terraform/                # DC1 infrastructure
+│   │   │   ├── main.tf               # Core networking, load balancers, DNS
+│   │   │   ├── instances.tf          # Instance groups, templates, configs
+│   │   │   ├── variables.tf          # Input variables
+│   │   │   ├── outputs.tf            # Structured outputs
+│   │   │   └── consul.tf             # Consul-specific resources
+│   │   └── jobs/                     # DC1 Nomad job definitions
+│   │       └── monitoring/           # Monitoring stack jobs
+│   │           ├── traefik.hcl       # Load balancer
+│   │           ├── prometheus.hcl    # Metrics collection
+│   │           └── grafana.hcl       # Monitoring dashboard
+│   └── dc2/                          # DC2 cluster (europe-west1)
+│       ├── terraform/                # DC2 infrastructure (identical to DC1)
+│       └── jobs/                     # DC2 Nomad job definitions (identical to DC1)
+├── consul/                           # Consul configurations
+│   ├── admin-partitions/             # Admin Partitions on GKE
+│   │   ├── terraform/                # Infrastructure as code
+│   │   │   ├── server-east/          # Consul servers (us-east1)
+│   │   │   ├── server-west/          # Consul servers (us-west1)
+│   │   │   ├── client-east/          # k8s-east partition (us-east4)
+│   │   │   └── client-west/          # k8s-west partition (us-west2)
+│   │   ├── helm/                     # Consul Helm configurations
+│   │   │   ├── server-east/          # Server cluster configurations
+│   │   │   ├── server-west/          # Server cluster configurations
+│   │   │   ├── client-east/          # Admin partition client configs
+│   │   │   └── client-west/          # Admin partition client configs
+│   │   ├── apps/                     # Demo applications
+│   │   │   └── fake-service/         # Frontend/backend services
+│   │   ├── configs/                  # Gateway configurations
+│   │   │   ├── api-gateway/          # Modern API Gateway (v2)
+│   │   │   └── mesh-gateway/         # Cross-partition communication
+│   │   ├── Taskfile.yml              # Admin partitions automation
+│   │   └── README.md                 # Admin partitions guide
+│   └── peering/                      # Consul Connect and peering configs
 │       └── configs/
 │           └── api-gateway/
-│               ├── listener.hcl  # API Gateway listener (port 8081)
-│               └── httproute.hcl # HTTP routing rules
-└── scripts/                      # Deployment automation
+│               ├── listener.hcl      # API Gateway listener (port 8081)
+│               └── httproute.hcl     # HTTP routing rules
+├── packer/                           # Custom image builds
+│   └── gcp/                         # GCP-specific Packer configs
+├── nomad-apps/                       # Application definitions
+│   ├── api-gw.nomad/                # Consul API Gateway
+│   │   └── api-gw.nomad.hcl         # API Gateway Nomad job
+│   ├── demo-fake-service/           # Demo microservices
+│   │   ├── backend.nomad.hcl        # Backend API services
+│   │   └── frontend.nomad.hcl       # Frontend service
+│   ├── monitoring/                  # Monitoring stack
+│   │   ├── traefik.hcl             # Load balancer
+│   │   ├── prometheus.hcl          # Metrics collection
+│   │   └── grafana.hcl             # Monitoring dashboard
+│   └── terramino.hcl               # Demo Tetris game
+└── scripts/                         # Deployment automation
 ```
 
 ### Key Architecture Notes
