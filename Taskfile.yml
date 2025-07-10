@@ -236,49 +236,323 @@ tasks:
       - echo ""
       - task: get-server-ips-dc2
 
-  check-consul-grpc-dc1:
-    desc: "Check Consul gRPC connectivity on DC1"
-    dir: "{{.DC1_DIR}}"
-    cmds:
-      - echo "=== Testing Consul gRPC connectivity on DC1 ==="
-      - echo "Getting server IPs..."
-      - gcloud compute instances list --filter='name~hashi-server' --format='value(name,EXTERNAL_IP)' | head -3
-      - echo ""
-      - echo "Testing gRPC port 8502 connectivity:"
-      - |-
-        for ip in $(gcloud compute instances list --filter='name~hashi-server' --format='value(EXTERNAL_IP)' | head -3); do
-          echo "Testing $ip:8502..."
-          timeout 5 bash -c "</dev/tcp/$ip/8502" && echo "✅ Port 8502 is open on $ip" || echo "❌ Port 8502 is closed/filtered on $ip"
-        done
-      - echo ""
-      - echo "Testing HTTP port 8500 connectivity:"
-      - |-
-        for ip in $(gcloud compute instances list --filter='name~hashi-server' --format='value(EXTERNAL_IP)' | head -3); do
-          echo "Testing $ip:8500..."
-          timeout 5 bash -c "</dev/tcp/$ip/8500" && echo "✅ Port 8500 is open on $ip" || echo "❌ Port 8500 is closed/filtered on $ip"
-        done
 
-  check-consul-grpc-dc2:
-    desc: "Check Consul gRPC connectivity on DC2"
-    dir: "{{.DC2_DIR}}"
+  # === GKE Cluster Management ===
+
+  deploy-gke-east:
+    desc: "Deploy GKE cluster k8s-east"
+    dir: "gke/k8s-east/terraform"
     cmds:
-      - echo "=== Testing Consul gRPC connectivity on DC2 ==="
-      - echo "Getting server IPs..."
-      - gcloud compute instances list --filter='name~hashi-server' --format='value(name,EXTERNAL_IP)' | head -3
+      - echo "=== Deploying GKE cluster k8s-east ==="
+      - terraform init
+      - terraform plan
+      - terraform apply -auto-approve
+      - echo "=== GKE k8s-east cluster deployed ==="
+      - terraform output get_credentials_command
+
+  deploy-gke-west:
+    desc: "Deploy GKE cluster k8s-west"
+    dir: "gke/k8s-west/terraform"
+    cmds:
+      - echo "=== Deploying GKE cluster k8s-west ==="
+      - terraform init
+      - terraform plan
+      - terraform apply -auto-approve
+      - echo "=== GKE k8s-west cluster deployed ==="
+      - terraform output get_credentials_command
+
+  deploy-gke-both:
+    desc: "Deploy both GKE clusters"
+    cmds:
+      - task: deploy-gke-east
+      - task: deploy-gke-west
+      - echo "=== Both GKE clusters deployed ==="
+
+  destroy-gke-east:
+    desc: "Destroy GKE cluster k8s-east"
+    dir: "gke/k8s-east/terraform"
+    cmds:
+      - terraform destroy -auto-approve
+
+  destroy-gke-west:
+    desc: "Destroy GKE cluster k8s-west"
+    dir: "gke/k8s-west/terraform"
+    cmds:
+      - terraform destroy -auto-approve
+
+  destroy-gke-both:
+    desc: "Destroy both GKE clusters"
+    cmds:
+      - task: destroy-gke-east
+      - task: destroy-gke-west
+
+  setup-kubectl-contexts:
+    desc: "Setup kubectl contexts for both GKE clusters"
+    cmds:
+      - echo "=== Setting up kubectl contexts ==="
+      - cd gke/k8s-east/terraform && $(terraform output -raw get_credentials_command)
+      - cd gke/k8s-west/terraform && $(terraform output -raw get_credentials_command)
+      - echo "=== kubectl contexts configured ==="
+      - kubectl config get-contexts | grep gke
+
+  create-consul-partitions:
+    desc: "Create admin partitions on Consul servers"
+    dir: "{{.DC1_DIR}}"
+    vars:
+      CONSUL_HTTP_ADDR:
+        sh: terraform output -json hashistack_urls | jq -r '.consul.api'
+      CONSUL_HTTP_TOKEN:
+        sh: terraform output -json auth_tokens | jq -r '.consul_token'
+    cmds:
+      - echo "=== Creating Consul admin partitions ==="
+      - export CONSUL_HTTP_ADDR="{{.CONSUL_HTTP_ADDR}}" && export CONSUL_HTTP_TOKEN="{{.CONSUL_HTTP_TOKEN}}" && consul partition create -name="k8s-east" -description="Kubernetes East Cluster"
+      - export CONSUL_HTTP_ADDR="{{.CONSUL_HTTP_ADDR}}" && export CONSUL_HTTP_TOKEN="{{.CONSUL_HTTP_TOKEN}}" && consul partition create -name="k8s-west" -description="Kubernetes West Cluster"
+      - echo "=== Partitions created ==="
+      - export CONSUL_HTTP_ADDR="{{.CONSUL_HTTP_ADDR}}" && export CONSUL_HTTP_TOKEN="{{.CONSUL_HTTP_TOKEN}}" && consul partition list
+
+  create-consul-namespaces:
+    desc: "Create DTAP namespaces in partitions"
+    dir: "{{.DC1_DIR}}"
+    vars:
+      CONSUL_HTTP_ADDR:
+        sh: terraform output -json hashistack_urls | jq -r '.consul.api'
+      CONSUL_HTTP_TOKEN:
+        sh: terraform output -json auth_tokens | jq -r '.consul_token'
+    cmds:
+      - echo "=== Creating Consul namespaces ==="
+      - export CONSUL_HTTP_ADDR="{{.CONSUL_HTTP_ADDR}}" && export CONSUL_HTTP_TOKEN="{{.CONSUL_HTTP_TOKEN}}" && consul namespace create -name="development" -partition="k8s-east"
+      - export CONSUL_HTTP_ADDR="{{.CONSUL_HTTP_ADDR}}" && export CONSUL_HTTP_TOKEN="{{.CONSUL_HTTP_TOKEN}}" && consul namespace create -name="testing" -partition="k8s-east"
+      - export CONSUL_HTTP_ADDR="{{.CONSUL_HTTP_ADDR}}" && export CONSUL_HTTP_TOKEN="{{.CONSUL_HTTP_TOKEN}}" && consul namespace create -name="acceptance" -partition="k8s-east"
+      - export CONSUL_HTTP_ADDR="{{.CONSUL_HTTP_ADDR}}" && export CONSUL_HTTP_TOKEN="{{.CONSUL_HTTP_TOKEN}}" && consul namespace create -name="development" -partition="k8s-west"
+      - export CONSUL_HTTP_ADDR="{{.CONSUL_HTTP_ADDR}}" && export CONSUL_HTTP_TOKEN="{{.CONSUL_HTTP_TOKEN}}" && consul namespace create -name="testing" -partition="k8s-west"
+      - export CONSUL_HTTP_ADDR="{{.CONSUL_HTTP_ADDR}}" && export CONSUL_HTTP_TOKEN="{{.CONSUL_HTTP_TOKEN}}" && consul namespace create -name="production" -partition="k8s-west"
+      - echo "=== Namespaces created ==="
+
+  create-partition-acl-policies:
+    desc: "Create ACL policies for admin partitions"
+    dir: "{{.DC1_DIR}}"
+    vars:
+      CONSUL_HTTP_ADDR:
+        sh: terraform output -json hashistack_urls | jq -r '.consul.api'
+      CONSUL_HTTP_TOKEN:
+        sh: terraform output -json auth_tokens | jq -r '.consul_token'
+    cmds:
+      - echo "=== Creating ACL policies for partitions ==="
+      - export CONSUL_HTTP_ADDR="{{.CONSUL_HTTP_ADDR}}" && export CONSUL_HTTP_TOKEN="{{.CONSUL_HTTP_TOKEN}}" && consul acl policy create -name="k8s-east-partition-policy" -description="Policy for k8s-east partition" -rules @../gke/acl-policies/k8s-east-partition-policy.hcl
+      - export CONSUL_HTTP_ADDR="{{.CONSUL_HTTP_ADDR}}" && export CONSUL_HTTP_TOKEN="{{.CONSUL_HTTP_TOKEN}}" && consul acl policy create -name="k8s-west-partition-policy" -description="Policy for k8s-west partition" -rules @../gke/acl-policies/k8s-west-partition-policy.hcl
+      - echo "=== ACL policies created ==="
+
+  create-partition-tokens:
+    desc: "Create ACL tokens for admin partitions"
+    dir: "{{.DC1_DIR}}"
+    vars:
+      CONSUL_HTTP_ADDR:
+        sh: terraform output -json hashistack_urls | jq -r '.consul.api'
+      CONSUL_HTTP_TOKEN:
+        sh: terraform output -json auth_tokens | jq -r '.consul_token'
+    cmds:
+      - echo "=== Creating ACL tokens for partitions ==="
+      - export CONSUL_HTTP_ADDR="{{.CONSUL_HTTP_ADDR}}" && export CONSUL_HTTP_TOKEN="{{.CONSUL_HTTP_TOKEN}}" && consul acl token create -description="Token for k8s-east partition" -policy-name="k8s-east-partition-policy" -partition="k8s-east" > ../gke/k8s-east-token.txt
+      - export CONSUL_HTTP_ADDR="{{.CONSUL_HTTP_ADDR}}" && export CONSUL_HTTP_TOKEN="{{.CONSUL_HTTP_TOKEN}}" && consul acl token create -description="Token for k8s-west partition" -policy-name="k8s-west-partition-policy" -partition="k8s-west" > ../gke/k8s-west-token.txt
+      - echo "=== ACL tokens created ==="
+      - echo "k8s-east token saved to gke/k8s-east-token.txt"
+      - echo "k8s-west token saved to gke/k8s-west-token.txt"
+
+  setup-k8s-secrets-east:
+    desc: "Setup Kubernetes secrets for k8s-east cluster"
+    dir: "{{.DC1_DIR}}"
+    vars:
+      CONSUL_HTTP_ADDR:
+        sh: terraform output -json hashistack_urls | jq -r '.consul.api'
+      CONSUL_HTTP_TOKEN:
+        sh: terraform output -json auth_tokens | jq -r '.consul_token'
+      CONSUL_CACERT:
+        sh: terraform output -json tls_info | jq -r '.ca_cert'
+      GOSSIP_KEY:
+        sh: terraform output -json auth_tokens | jq -r '.gossip_key'
+    cmds:
+      - echo "=== Setting up Kubernetes secrets for k8s-east ==="
+      - kubectl config use-context gke_hc-1031dcc8d7c24bfdbb4c08979b0_europe-southwest1_k8s-east
+      - kubectl create namespace consul || true
+      - kubectl create secret generic consul-bootstrap-token --from-literal=token="{{.CONSUL_HTTP_TOKEN}}" -n consul || true
+      - kubectl create secret generic consul-partition-token --from-file=token=../gke/k8s-east-token.txt -n consul || true
+      - echo "{{.CONSUL_CACERT}}" | base64 -d > /tmp/consul-ca.crt
+      - kubectl create secret generic consul-ca-cert --from-file=tls.crt=/tmp/consul-ca.crt -n consul || true
+      - kubectl create secret generic consul-gossip-encryption-key --from-literal=key="{{.GOSSIP_KEY}}" -n consul || true
+      - kubectl create secret generic consul-enterprise-license --from-literal=key="$CONSUL_LICENSE" -n consul || true
+      - rm -f /tmp/consul-ca.crt
+      - echo "=== Kubernetes secrets created for k8s-east ==="
+
+  setup-k8s-secrets-west:
+    desc: "Setup Kubernetes secrets for k8s-west cluster"
+    dir: "{{.DC1_DIR}}"
+    vars:
+      CONSUL_HTTP_ADDR:
+        sh: terraform output -json hashistack_urls | jq -r '.consul.api'
+      CONSUL_HTTP_TOKEN:
+        sh: terraform output -json auth_tokens | jq -r '.consul_token'
+      CONSUL_CACERT:
+        sh: terraform output -json tls_info | jq -r '.ca_cert'
+      GOSSIP_KEY:
+        sh: terraform output -json auth_tokens | jq -r '.gossip_key'
+    cmds:
+      - echo "=== Setting up Kubernetes secrets for k8s-west ==="
+      - kubectl config use-context gke_hc-1031dcc8d7c24bfdbb4c08979b0_europe-west1_k8s-west
+      - kubectl create namespace consul || true
+      - kubectl create secret generic consul-bootstrap-token --from-literal=token="{{.CONSUL_HTTP_TOKEN}}" -n consul || true
+      - kubectl create secret generic consul-partition-token --from-file=token=../gke/k8s-west-token.txt -n consul || true
+      - echo "{{.CONSUL_CACERT}}" | base64 -d > /tmp/consul-ca.crt
+      - kubectl create secret generic consul-ca-cert --from-file=tls.crt=/tmp/consul-ca.crt -n consul || true
+      - kubectl create secret generic consul-gossip-encryption-key --from-literal=key="{{.GOSSIP_KEY}}" -n consul || true
+      - kubectl create secret generic consul-enterprise-license --from-literal=key="$CONSUL_LICENSE" -n consul || true
+      - rm -f /tmp/consul-ca.crt
+      - echo "=== Kubernetes secrets created for k8s-west ==="
+
+  deploy-consul-k8s-east:
+    desc: "Deploy Consul to k8s-east cluster"
+    cmds:
+      - echo "=== Deploying Consul to k8s-east ==="
+      - kubectl config use-context gke_hc-1031dcc8d7c24bfdbb4c08979b0_europe-southwest1_k8s-east
+      - helm repo add hashicorp https://helm.releases.hashicorp.com
+      - helm repo update
+      - helm upgrade --install consul hashicorp/consul -n consul -f gke/k8s-east/helm-values.yaml --version 1.5.0
+      - echo "=== Consul deployed to k8s-east ==="
+
+  deploy-consul-k8s-west:
+    desc: "Deploy Consul to k8s-west cluster"
+    cmds:
+      - echo "=== Deploying Consul to k8s-west ==="
+      - kubectl config use-context gke_hc-1031dcc8d7c24bfdbb4c08979b0_europe-west1_k8s-west
+      - helm repo add hashicorp https://helm.releases.hashicorp.com
+      - helm repo update
+      - helm upgrade --install consul hashicorp/consul -n consul -f gke/k8s-west/helm-values.yaml --version 1.5.0
+      - echo "=== Consul deployed to k8s-west ==="
+
+  deploy-consul-k8s-both:
+    desc: "Deploy Consul to both GKE clusters"
+    cmds:
+      - task: deploy-consul-k8s-east
+      - task: deploy-consul-k8s-west
+      - echo "=== Consul deployed to both GKE clusters ==="
+
+  admin-partitions-full-setup:
+    desc: "Complete admin partitions setup with API Gateway"
+    cmds:
+      - echo "=== Starting complete admin partitions setup ==="
+      - task: create-consul-partitions
+      - task: create-consul-namespaces
+      - task: create-partition-acl-policies
+      - task: create-partition-tokens
+      - task: deploy-gke-both
+      - task: setup-kubectl-contexts
+      - task: setup-k8s-secrets-east
+      - task: setup-k8s-secrets-west
+      - task: deploy-consul-k8s-both
+      - task: deploy-full-api-gateway-stack
+      - echo "=== Admin partitions setup complete with API Gateway ==="
+
+  deploy-api-gateways:
+    desc: "Deploy API Gateways to both GKE clusters"
+    cmds:
+      - echo "=== Deploying API Gateways ==="
+      - kubectl config use-context gke_hc-1031dcc8d7c24bfdbb4c08979b0_europe-southwest1_k8s-east
+      - kubectl create namespace development || true
+      - kubectl apply -f gke/api-gateway/gateway-k8s-east.yaml
+      - kubectl config use-context gke_hc-1031dcc8d7c24bfdbb4c08979b0_europe-west1_k8s-west
+      - kubectl create namespace production || true
+      - kubectl apply -f gke/api-gateway/gateway-k8s-west.yaml
+      - echo "=== API Gateways deployed ==="
+
+  deploy-sample-apps:
+    desc: "Deploy sample applications to test admin partitions"
+    cmds:
+      - echo "=== Deploying sample applications ==="
+      - kubectl config use-context gke_hc-1031dcc8d7c24bfdbb4c08979b0_europe-southwest1_k8s-east
+      - kubectl create namespace development || true
+      - kubectl apply -f gke/sample-apps/frontend-k8s-east.yaml
+      - kubectl config use-context gke_hc-1031dcc8d7c24bfdbb4c08979b0_europe-west1_k8s-west
+      - kubectl create namespace production || true
+      - kubectl apply -f gke/sample-apps/backend-k8s-west.yaml
+      - echo "=== Sample applications deployed ==="
+      - echo "Frontend deployed to k8s-east/development"
+      - echo "Backend deployed to k8s-west/production"
+
+  deploy-httproutes:
+    desc: "Deploy HTTP Routes for API Gateway"
+    cmds:
+      - echo "=== Deploying HTTP Routes ==="
+      - kubectl config use-context gke_hc-1031dcc8d7c24bfdbb4c08979b0_europe-southwest1_k8s-east
+      - kubectl apply -f gke/api-gateway/frontend-httproute-k8s-east.yaml
+      - kubectl config use-context gke_hc-1031dcc8d7c24bfdbb4c08979b0_europe-west1_k8s-west
+      - kubectl apply -f gke/api-gateway/backend-httproute-k8s-west.yaml
+      - echo "=== HTTP Routes deployed ==="
+
+  deploy-service-intentions:
+    desc: "Deploy service intentions for cross-partition communication"
+    cmds:
+      - echo "=== Deploying service intentions ==="
+      - kubectl config use-context gke_hc-1031dcc8d7c24bfdbb4c08979b0_europe-southwest1_k8s-east
+      - kubectl apply -f gke/api-gateway/service-intentions.yaml
+      - kubectl config use-context gke_hc-1031dcc8d7c24bfdbb4c08979b0_europe-west1_k8s-west
+      - kubectl apply -f gke/api-gateway/service-intentions.yaml
+      - echo "=== Service intentions deployed ==="
+
+  deploy-full-api-gateway-stack:
+    desc: "Deploy complete API Gateway stack with applications"
+    cmds:
+      - task: deploy-api-gateways
+      - task: deploy-sample-apps
+      - task: deploy-httproutes
+      - task: deploy-service-intentions
+      - echo "=== Complete API Gateway stack deployed ==="
+
+  admin-partitions-status:
+    desc: "Check status of admin partitions and applications"
+    dir: "{{.DC1_DIR}}"
+    vars:
+      CONSUL_HTTP_ADDR:
+        sh: terraform output -json hashistack_urls | jq -r '.consul.api'
+      CONSUL_HTTP_TOKEN:
+        sh: terraform output -json auth_tokens | jq -r '.consul_token'
+    cmds:
+      - echo "=== Admin Partitions Status ==="
+      - export CONSUL_HTTP_ADDR="{{.CONSUL_HTTP_ADDR}}" && export CONSUL_HTTP_TOKEN="{{.CONSUL_HTTP_TOKEN}}" && consul partition list
       - echo ""
-      - echo "Testing gRPC port 8502 connectivity:"
-      - |-
-        for ip in $(gcloud compute instances list --filter='name~hashi-server' --format='value(EXTERNAL_IP)' | head -3); do
-          echo "Testing $ip:8502..."
-          timeout 5 bash -c "</dev/tcp/$ip/8502" && echo "✅ Port 8502 is open on $ip" || echo "❌ Port 8502 is closed/filtered on $ip"
-        done
+      - echo "=== Namespaces in k8s-east ==="
+      - export CONSUL_HTTP_ADDR="{{.CONSUL_HTTP_ADDR}}" && export CONSUL_HTTP_TOKEN="{{.CONSUL_HTTP_TOKEN}}" && consul namespace list -partition=k8s-east
       - echo ""
-      - echo "Testing HTTP port 8500 connectivity:"
-      - |-
-        for ip in $(gcloud compute instances list --filter='name~hashi-server' --format='value(EXTERNAL_IP)' | head -3); do
-          echo "Testing $ip:8500..."
-          timeout 5 bash -c "</dev/tcp/$ip/8500" && echo "✅ Port 8500 is open on $ip" || echo "❌ Port 8500 is closed/filtered on $ip"
-        done
+      - echo "=== Namespaces in k8s-west ==="
+      - export CONSUL_HTTP_ADDR="{{.CONSUL_HTTP_ADDR}}" && export CONSUL_HTTP_TOKEN="{{.CONSUL_HTTP_TOKEN}}" && consul namespace list -partition=k8s-west
+      - echo ""
+      - echo "=== Services in k8s-east ==="
+      - export CONSUL_HTTP_ADDR="{{.CONSUL_HTTP_ADDR}}" && export CONSUL_HTTP_TOKEN="{{.CONSUL_HTTP_TOKEN}}" && consul catalog services -partition=k8s-east
+      - echo ""
+      - echo "=== Services in k8s-west ==="
+      - export CONSUL_HTTP_ADDR="{{.CONSUL_HTTP_ADDR}}" && export CONSUL_HTTP_TOKEN="{{.CONSUL_HTTP_TOKEN}}" && consul catalog services -partition=k8s-west
+      - echo ""
+      - echo "=== GKE Cluster Status ==="
+      - kubectl config use-context gke_hc-1031dcc8d7c24bfdbb4c08979b0_europe-southwest1_k8s-east
+      - echo "k8s-east pods:"
+      - kubectl get pods -n consul
+      - kubectl get pods -n development
+      - echo "k8s-east API Gateway:"
+      - kubectl get gateway -n development
+      - kubectl get httproutes -n development
+      - kubectl config use-context gke_hc-1031dcc8d7c24bfdbb4c08979b0_europe-west1_k8s-west
+      - echo "k8s-west pods:"
+      - kubectl get pods -n consul
+      - kubectl get pods -n production
+      - echo "k8s-west API Gateway:"
+      - kubectl get gateway -n production
+      - kubectl get httproutes -n production
+      - echo ""
+      - echo "=== API Gateway External IPs ==="
+      - kubectl config use-context gke_hc-1031dcc8d7c24bfdbb4c08979b0_europe-southwest1_k8s-east
+      - echo "k8s-east API Gateway:"
+      - kubectl get svc -n development | grep api-gateway || echo "No API Gateway service found"
+      - kubectl config use-context gke_hc-1031dcc8d7c24bfdbb4c08979b0_europe-west1_k8s-west
+      - echo "k8s-west API Gateway:"
+      - kubectl get svc -n production | grep api-gateway || echo "No API Gateway service found"
 
   # === Quick Access ===
 

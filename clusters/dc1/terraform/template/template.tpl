@@ -139,8 +139,7 @@ ui_config {
 
 ports {
   https = 8501
-  grpc = 8502
-  grpc_tls = 8503
+  grpc_tls = 8502
 }
 
 

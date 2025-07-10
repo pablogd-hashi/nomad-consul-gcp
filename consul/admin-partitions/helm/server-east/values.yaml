@@ -41,12 +41,7 @@ server:
   enabled: true
   image: hashicorp/consul-enterprise:${consul_version}
   replicas: 3
-  bootstrapExpect: 3
-  
-  # Enterprise license
-  enterpriseLicense:
-    secretName: consul-enterprise-license
-    secretKey: key
+  bootstrapExpected: 3
   
   # Storage
   storage: 10Gi
@@ -76,7 +71,7 @@ server:
   exposeService:
     enabled: true
     type: LoadBalancer
-    annotations:
+    annotations: |
       cloud.google.com/backend-config: '{"default": "consul-backend-config"}'
   
   # Extra configuration

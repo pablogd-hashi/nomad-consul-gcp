@@ -1,0 +1,66 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backend
+  namespace: production
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: production
+  labels:
+    app: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+      annotations:
+        consul.hashicorp.com/connect-inject: "true"
+        consul.hashicorp.com/connect-service: "backend"
+        consul.hashicorp.com/service-tags: "k8s-west,production"
+    spec:
+      serviceAccountName: backend
+      containers:
+      - name: backend
+        image: nicholasjackson/fake-service:v0.23.1
+        ports:
+        - containerPort: 9090
+        env:
+        - name: LISTEN_ADDR
+          value: "0.0.0.0:9090"
+        - name: MESSAGE
+          value: "Hello from Backend in k8s-west/production!"
+        - name: NAME
+          value: "backend"
+        - name: SERVER_TYPE
+          value: "http"
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: production
+  labels:
+    app: backend
+spec:
+  selector:
+    app: backend
+  ports:
+  - port: 9090
+    targetPort: 9090
+    name: http
+  type: ClusterIP

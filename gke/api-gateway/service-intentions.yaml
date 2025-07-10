@@ -1,0 +1,72 @@
+---
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ServiceIntentions
+metadata:
+  name: api-gateway-east-intentions
+  namespace: development
+spec:
+  destination:
+    name: api-gateway-east
+    namespace: development
+  sources:
+  - name: "*"
+    permissions:
+    - action: allow
+      http:
+        pathPrefix: "/frontend"
+    - action: allow
+      http:
+        pathPrefix: "/"
+---
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ServiceIntentions
+metadata:
+  name: api-gateway-west-intentions
+  namespace: production
+spec:
+  destination:
+    name: api-gateway-west
+    namespace: production
+  sources:
+  - name: "*"
+    permissions:
+    - action: allow
+      http:
+        pathPrefix: "/backend"
+    - action: allow
+      http:
+        pathPrefix: "/api"
+---
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ServiceIntentions
+metadata:
+  name: frontend-to-backend-cross-partition
+  namespace: development
+spec:
+  destination:
+    name: backend
+    namespace: production
+    partition: k8s-west
+  sources:
+  - name: frontend
+    namespace: development
+    partition: k8s-east
+    action: allow
+---
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ServiceIntentions
+metadata:
+  name: backend-intentions
+  namespace: production
+spec:
+  destination:
+    name: backend
+    namespace: production
+  sources:
+  - name: frontend
+    namespace: development
+    partition: k8s-east
+    action: allow
+  - name: api-gateway-west
+    namespace: production
+    action: allow

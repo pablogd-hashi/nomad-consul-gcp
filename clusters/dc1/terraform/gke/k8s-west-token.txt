@@ -1,0 +1,10 @@
+AccessorID:       1d01a4e9-0e69-8b32-4a37-d65f5c119d90
+SecretID:         a3ecfed6-bebf-7107-ac7e-41f6007d9a26
+Partition:        k8s-west
+Namespace:        default
+Description:      Token for k8s-west partition
+Local:            false
+Create Time:      2025-07-09 18:29:32.642419034 +0000 UTC
+Policies:
+   d9555a48-aef6-dc7e-c465-bd18f8e1b8bc - k8s-west-partition-policy
+

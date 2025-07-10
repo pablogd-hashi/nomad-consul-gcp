@@ -13,6 +13,23 @@ A production-ready multi-cluster deployment of HashiCorp Consul Enterprise 1.21.
 - ✅ **Task Automation**: Enhanced Taskfile for complete lifecycle management
 - ✅ **Load Balancer**: Fixed GCP 5-port limit, added port 8081 for API Gateway
 - ✅ **API Gateway**: Consul API Gateway deployment with Nomad integration
+- ✅ **Admin Partitions**: Dedicated GKE demo with multi-tenant isolation
+
+## 🎯 Demo Options
+
+This project provides two complete demonstrations:
+
+### 1. **Main Demo**: Nomad + Consul on GCE
+- **Path**: `clusters/dc1/` and `clusters/dc2/`  
+- **Technology**: Consul + Nomad Enterprise on Google Compute Engine
+- **Features**: Multi-cluster deployment, cluster peering, application orchestration
+
+### 2. **Admin Partitions Demo**: Consul on GKE  
+- **Path**: `consul/admin-partitions/`
+- **Technology**: Consul Enterprise Admin Partitions on Google Kubernetes Engine  
+- **Features**: Multi-tenant isolation, cross-partition service mesh, DTAP environments
+
+**→ For Admin Partitions demo, see [`consul/admin-partitions/README.md`](consul/admin-partitions/README.md)**
 
 ## 🏗️ Architecture Overview
 

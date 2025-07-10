@@ -132,6 +132,13 @@ resource "google_container_node_pool" "consul_servers" {
     max_surge       = 1
     max_unavailable = 0
   }
+
+  lifecycle {
+    ignore_changes = [
+      node_config,
+      initial_node_count,
+    ]
+  }
 }
 
 # Get cluster credentials

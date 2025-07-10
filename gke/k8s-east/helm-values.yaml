@@ -1,0 +1,43 @@
+global:
+  name: consul
+  enabled: false
+  enableConsulNamespaces: true
+  image: hashicorp/consul-enterprise:1.21.2-ent
+  adminPartitions:
+    enabled: false
+  tls:
+    enabled: true
+    caCert:
+      secretName: consul-ca-cert
+      secretKey: tls.crt
+  acls:
+    manageSystemACLs: true
+    bootstrapToken:
+      secretName: consul-partitions-acl-token
+      secretKey: token
+  enterpriseLicense:
+    secretName: consul-enterprise-license
+    secretKey: key
+
+externalServers:
+  enabled: true
+  hosts: ["34.175.140.62", "34.175.36.112", "34.175.236.196"]
+  httpsPort: 8501
+  grpcPort: 8502
+  tlsServerName: server.gcp-dc1.consul
+  k8sAuthMethodHost: https://34.175.44.12
+
+connectInject:
+  enabled: true
+  consulNamespaces:
+    mirroringK8S: true
+
+controller:
+  enabled: true
+  
+# Mesh gateway configuration
+meshGateway:
+  enabled: true
+  replicas: 1
+  service:
+    type: LoadBalancer
