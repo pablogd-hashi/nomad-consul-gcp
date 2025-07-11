@@ -49,13 +49,59 @@ scrape_configs:
       format: ['prometheus']
     scrape_interval: 10s
 
-  - job_name: 'consul'
+  - job_name: 'consul-agent'
     static_configs:
     - targets: ['localhost:8500']
     metrics_path: /v1/agent/metrics
     params:
       format: ['prometheus']
     scrape_interval: 10s
+
+  - job_name: 'consul-services'
+    consul_sd_configs:
+    - server: 'localhost:8500'
+      datacenter: 'gcp-dc2'
+    relabel_configs:
+    - source_labels: [__meta_consul_tags]
+      regex: .*,metrics,.*
+      action: keep
+    - source_labels: [__meta_consul_service]
+      target_label: job
+    - source_labels: [__meta_consul_service_address]
+      target_label: __address__
+    - source_labels: [__meta_consul_service_port]
+      target_label: __address__
+      regex: (.*)
+      replacement: '${1}:${2}'
+    - source_labels: [__meta_consul_service_id]
+      target_label: instance
+    - source_labels: [__meta_consul_datacenter]
+      target_label: datacenter
+    - source_labels: [__meta_consul_node]
+      target_label: node
+    scrape_interval: 10s
+
+  - job_name: 'consul-connect-envoy'
+    consul_sd_configs:
+    - server: 'localhost:8500'
+      datacenter: 'gcp-dc2'
+      services: ['*-sidecar-proxy']
+    relabel_configs:
+    - source_labels: [__meta_consul_service]
+      regex: '(.*)-sidecar-proxy'
+      target_label: service
+      replacement: '${1}'
+    - source_labels: [__meta_consul_service_address]
+      target_label: __address__
+    - source_labels: [__meta_consul_service_port]
+      target_label: __address__
+      regex: (.*)
+      replacement: '${1}:${2}'
+    - target_label: __metrics_path__
+      replacement: /stats/prometheus
+    - source_labels: [__meta_consul_service_id]
+      target_label: instance
+    scrape_interval: 15s
 EOH
       }
 

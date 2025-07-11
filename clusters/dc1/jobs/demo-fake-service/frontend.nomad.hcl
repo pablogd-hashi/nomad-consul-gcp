@@ -13,14 +13,16 @@ job "front-service" {
 
   group "frontend" {
     network {
+      mode = "bridge"
       port "http" {
         static = 8081
+        to = 8081
       }
     }
     service {
       name = "front-service"
       tags = ["web","frontend"]
-      port = 9090
+      port = 8081
       # # For TProxy and Consul Connect we need to use the port and address of the Allocation
       # address_mode = "alloc"
     
@@ -58,8 +60,8 @@ job "front-service" {
       #   memory = 256
       # }
       env {
-        PORT = "9090"
-        LISTEN_ADDR = "0.0.0.0:9090"
+        PORT = "8081"
+        LISTEN_ADDR = "0.0.0.0:8081"
         MESSAGE = "Hello World fron Frontend V1 @${NOMAD_DC}"
         NAME = "web"
         UPSTREAM_URIS = "http://public-api.virtual.consul:9090,http://private-api.virtual.consul:9090,http://private-api.virtual.gcp-dc2-default.peer.consul:9090"
