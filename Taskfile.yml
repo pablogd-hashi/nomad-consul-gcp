@@ -263,6 +263,30 @@ tasks:
       - helm uninstall consul -n consul || echo "Consul not installed"
       - kubectl delete namespace consul || echo "Namespace not found"
 
+  gke-deploy-demo:
+    desc: "Deploy demo applications with Consul Connect"
+    dir: "{{.GKE_MANIFESTS_DIR}}/demo-apps"
+    cmds:
+      - ./deploy-demo.sh
+
+  gke-status-demo:
+    desc: "Check demo application status"
+    cmds:
+      - echo "=== Frontend Namespace ==="
+      - kubectl get pods,svc -n frontend
+      - echo ""
+      - echo "=== Backend Namespace ==="
+      - kubectl get pods,svc -n backend
+      - echo ""
+      - echo "=== Frontend LoadBalancer URL ==="
+      - kubectl get svc frontend -n frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}' && echo ":9090" || echo "LoadBalancer IP pending..."
+
+  gke-cleanup-demo:
+    desc: "Remove demo applications"
+    cmds:
+      - kubectl delete namespace frontend --ignore-not-found
+      - kubectl delete namespace backend --ignore-not-found
+
   show-urls:
     desc: "Show all access URLs for both clusters"
     cmds:

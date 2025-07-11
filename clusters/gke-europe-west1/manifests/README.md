@@ -18,6 +18,7 @@ The GKE cluster connects to existing Consul servers as a client in the **k8s-tes
 │ GKE Cluster     │    │ HashiCorp VMs        │
 │ (k8s-test       │◄──►│ (Consul Servers)     │
 │  partition)     │    │ - DC1: gcp-dc1       │
+│ europe-west1    │    │ - europe-west1       │
 │                 │    │ - Servers: 3 nodes   │
 └─────────────────┘    └──────────────────────┘
 ```
@@ -42,7 +43,7 @@ The GKE cluster connects to existing Consul servers as a client in the **k8s-tes
 ### Step 1: Authenticate with GKE
 
 ```bash
-# Authenticate kubectl with your GKE cluster
+# Authenticate kubectl with your GKE cluster (europe-west1 region)
 gcloud container clusters get-credentials gke-cluster-gke --region europe-west1 --project <your-project-id>
 
 # Verify connection
@@ -54,7 +55,7 @@ kubectl cluster-info
 First, create the `k8s-test` admin partition on your Consul servers:
 
 ```bash
-# Set Consul environment
+# Set Consul environment (Europe-based server IPs)
 export CONSUL_HTTP_ADDR="http://34.175.140.62:8500"
 export CONSUL_HTTP_TOKEN="ConsulR0cks"  # Your bootstrap token
 
@@ -100,14 +101,14 @@ consul acl token create \
 The GKE setup requires Consul CA certificates from your existing infrastructure:
 
 ```bash
-# Navigate to your DC1 terraform directory
+# Navigate to your DC1 terraform directory (Europe-based cluster)
 cd ../../dc1/terraform
 
 # Verify the certificates exist
 ls -la consul-agent-ca.pem consul-agent-ca-key.pem
 
 # These files contain:
-# - consul-agent-ca.pem: Consul CA certificate for TLS
+# - consul-agent-ca.pem: Consul CA certificate for TLS (from europe-west1 servers)
 # - consul-agent-ca-key.pem: Consul CA private key
 ```
 
@@ -186,7 +187,7 @@ kubectl logs -n consul -l app=consul -l component=connect-injector
 kubectl get svc consul-mesh-gateway -n consul
 
 # Check Consul UI - you should see k8s services registered
-# Visit your Consul UI at: http://34.175.140.62:8500
+# Visit your Consul UI at: http://34.175.140.62:8500 (europe-west1 server)
 # Navigate to Services -> Filter by k8s-test partition
 ```
 
@@ -198,19 +199,19 @@ The `gke-consul-values.yaml` contains these critical settings:
 
 ```yaml
 global:
-  datacenter: gcp-dc1                    # Must match your Consul datacenter
+  datacenter: gcp-dc1                    # Must match your Consul datacenter (europe-west1)
   adminPartitions:
     enabled: true
     name: "k8s-test"                     # The partition we created
   
 externalServers:
   enabled: true
-  hosts:                                 # Your actual Consul server IPs
+  hosts:                                 # Your actual Consul server IPs (europe-west1)
     - "34.175.140.62"
     - "34.175.36.112" 
     - "34.175.236.196"
   tlsServerName: server.gcp-dc1.consul   # Must match server certificate
-  k8sAuthMethodHost: https://34.34.153.88 # Your GKE API server endpoint
+  k8sAuthMethodHost: https://34.34.153.88 # Your GKE API server endpoint (europe-west1)
 
 server:
   enabled: false                         # No local Consul servers
@@ -227,7 +228,7 @@ server:
 ### Connection Issues
 
 ```bash
-# Check if Consul servers are reachable
+# Check if Consul servers are reachable (europe-west1 servers)
 kubectl run debug-pod --image=nicolaka/netshoot --rm -it --restart=Never -- nc -zv 34.175.140.62 8502
 
 # Check pod logs
