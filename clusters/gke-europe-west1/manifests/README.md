@@ -55,9 +55,9 @@ kubectl cluster-info
 First, create the `k8s-test` admin partition on your Consul servers:
 
 ```bash
-# Set Consul environment (Europe-based server IPs)
-export CONSUL_HTTP_ADDR="http://34.175.140.62:8500"
-export CONSUL_HTTP_TOKEN="ConsulR0cks"  # Your bootstrap token
+# Set Consul environment (use your actual server IP)
+export CONSUL_HTTP_ADDR="http://<consul-server-ip>:8500"
+export CONSUL_HTTP_TOKEN="<your-bootstrap-token>"
 
 # Create the admin partition
 echo 'Name = "k8s-test"
@@ -136,7 +136,7 @@ kubectl create secret generic consul-ca-key \
 
 kubectl create secret generic consul-bootstrap-token \
   --namespace=consul \
-  --from-literal=token="ConsulR0cks"
+  --from-literal=token="<your-bootstrap-token>"
 
 kubectl create secret generic consul-partitions-acl-token \
   --namespace=consul \
@@ -144,7 +144,7 @@ kubectl create secret generic consul-partitions-acl-token \
 
 kubectl create secret generic consul-dns-token \
   --namespace=consul \
-  --from-literal=token="ConsulR0cks"
+  --from-literal=token="<your-bootstrap-token>"
 ```
 
 ### Step 5: Deploy Consul to GKE
@@ -187,7 +187,7 @@ kubectl logs -n consul -l app=consul -l component=connect-injector
 kubectl get svc consul-mesh-gateway -n consul
 
 # Check Consul UI - you should see k8s services registered
-# Visit your Consul UI at: http://34.175.140.62:8500 (europe-west1 server)
+# Visit your Consul UI at: http://<consul-server-ip>:8500
 # Navigate to Services -> Filter by k8s-test partition
 ```
 
@@ -206,12 +206,12 @@ global:
   
 externalServers:
   enabled: true
-  hosts:                                 # Your actual Consul server IPs (europe-west1)
-    - "34.175.140.62"
-    - "34.175.36.112" 
-    - "34.175.236.196"
+  hosts:                                 # Your actual Consul server IPs
+    - "<consul-server-ip-1>"
+    - "<consul-server-ip-2>" 
+    - "<consul-server-ip-3>"
   tlsServerName: server.gcp-dc1.consul   # Must match server certificate
-  k8sAuthMethodHost: https://34.34.153.88 # Your GKE API server endpoint (europe-west1)
+  k8sAuthMethodHost: https://<gke-api-endpoint> # Your GKE API server endpoint
 
 server:
   enabled: false                         # No local Consul servers
@@ -228,8 +228,8 @@ server:
 ### Connection Issues
 
 ```bash
-# Check if Consul servers are reachable (europe-west1 servers)
-kubectl run debug-pod --image=nicolaka/netshoot --rm -it --restart=Never -- nc -zv 34.175.140.62 8502
+# Check if Consul servers are reachable
+kubectl run debug-pod --image=nicolaka/netshoot --rm -it --restart=Never -- nc -zv <consul-server-ip> 8502
 
 # Check pod logs
 kubectl logs -n consul <pod-name>

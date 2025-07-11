@@ -34,8 +34,8 @@ Set your Consul environment (use actual server IPs from europe-west1):
 
 ```bash
 # Set Consul environment
-export CONSUL_HTTP_ADDR="http://34.175.140.62:8500"
-export CONSUL_HTTP_TOKEN="ConsulR0cks"  # Your bootstrap token
+export CONSUL_HTTP_ADDR="http://<consul-server-ip>:8500"
+export CONSUL_HTTP_TOKEN="<your-bootstrap-token>"
 
 # Verify connection
 consul members
@@ -265,14 +265,6 @@ kubectl get secret consul-partitions-acl-token -n consul -o jsonpath='{.data.tok
 kubectl describe pod <pod-name> -n <namespace>
 ```
 
-## Best Practices
-
-1. **Use descriptive partition names** - `k8s-prod`, `nomad-staging`, etc.
-2. **Limit partition scope** - Don't create too many partitions
-3. **Plan ACL policies carefully** - Start with minimal permissions
-4. **Monitor cross-partition traffic** - Use Consul metrics and logs
-5. **Document partition purposes** - Keep clear documentation
-
 ## Integration with GKE
 
 When using with the GKE setup in this repository:
@@ -283,11 +275,3 @@ When using with the GKE setup in this repository:
 4. **Helm values**: References the partition in `gke-consul-values.yaml`
 
 See `clusters/gke-europe-west1/manifests/README.md` for complete GKE integration guide.
-
-## Success Criteria
-
-✅ **Partition created**: `consul partition list` shows k8s-test  
-✅ **Token working**: Services can authenticate to partition  
-✅ **Services registered**: Kubernetes services appear in Consul  
-✅ **Cross-partition discovery**: Services can find each other  
-✅ **Service mesh active**: Envoy sidecars injected and working
