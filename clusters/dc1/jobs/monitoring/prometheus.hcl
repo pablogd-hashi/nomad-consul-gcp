@@ -55,24 +55,23 @@ scrape_configs:
     metrics_path: /v1/agent/metrics
     params:
       format: ['prometheus']
+    bearer_token: 'ConsulR0cks'
     scrape_interval: 10s
 
   - job_name: 'consul-services'
     consul_sd_configs:
     - server: 'localhost:8500'
       datacenter: 'gcp-dc1'
+      token: 'ConsulR0cks'
     relabel_configs:
     - source_labels: [__meta_consul_tags]
       regex: .*,metrics,.*
       action: keep
     - source_labels: [__meta_consul_service]
       target_label: job
-    - source_labels: [__meta_consul_service_address]
+    - source_labels: [__meta_consul_service_address, __meta_consul_service_port]
       target_label: __address__
-    - source_labels: [__meta_consul_service_port]
-      target_label: __address__
-      regex: (.*)
-      replacement: '${1}:${2}'
+      separator: ':'
     - source_labels: [__meta_consul_service_id]
       target_label: instance
     - source_labels: [__meta_consul_datacenter]
@@ -86,17 +85,15 @@ scrape_configs:
     - server: 'localhost:8500'
       datacenter: 'gcp-dc1'
       services: ['*-sidecar-proxy']
+      token: 'ConsulR0cks'
     relabel_configs:
     - source_labels: [__meta_consul_service]
       regex: '(.*)-sidecar-proxy'
       target_label: service
       replacement: '${1}'
-    - source_labels: [__meta_consul_service_address]
+    - source_labels: [__meta_consul_service_address, __meta_consul_service_port]
       target_label: __address__
-    - source_labels: [__meta_consul_service_port]
-      target_label: __address__
-      regex: (.*)
-      replacement: '${1}:${2}'
+      separator: ':'
     - target_label: __metrics_path__
       replacement: /stats/prometheus
     - source_labels: [__meta_consul_service_id]

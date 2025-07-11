@@ -41,7 +41,7 @@ datasources:
   - name: Loki
     type: loki
     access: proxy
-    url: http://localhost:3100
+    url: http://loki.service.consul:3100
     editable: false
 EOF
         destination = "local/prometheus-datasource.yml"

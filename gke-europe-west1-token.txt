@@ -1,0 +1,10 @@
+AccessorID:       53a7aba4-b6b4-aba1-8ded-ac2a34f5a3f3
+SecretID:         d27921fe-53e9-26bb-867d-8ab53665b196
+Partition:        gke-europe-west1
+Namespace:        default
+Description:      gke-europe-west1 partition token
+Local:            false
+Create Time:      2025-07-11 12:58:51.122508778 +0000 UTC
+Policies:
+   bb6cdd78-dc95-80e0-8c36-753acf58d5e3 - gke-europe-west1-partition-policy
+

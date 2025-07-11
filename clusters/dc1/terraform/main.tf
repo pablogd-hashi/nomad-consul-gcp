@@ -73,7 +73,7 @@ resource "google_compute_firewall" "default" {
 
   allow {
     protocol = "tcp"
-    ports    = ["80","443","8500","8501","8502","8503","22","8300","8301","8400","8302","8600","4646","4647","4648","8443","8080","8081","3000","9090"]
+    ports    = ["80","443","8500","8501","8502","8503","22","8300","8301","8400","8302","8600","4646","4647","4648","8443","8080","8081","3000","3100","9090"]
   }
   allow {
     protocol = "udp"
@@ -195,7 +195,7 @@ resource "google_compute_forwarding_rule" "clients-lb" {
   # target    = google_compute_target_pool.vm-pool.self_link
   region = var.gcp_region
   ip_protocol = "TCP"
-  ports = ["80","3000","8080","8081","9090"]
+  ports = ["80","3000","3100","8080","8081","9090"]
 }
 
 

@@ -3,6 +3,8 @@ version: '3'
 vars:
   DC1_DIR: clusters/dc1/terraform
   DC2_DIR: clusters/dc2/terraform
+  GKE_DIR: clusters/gke-europe-west1/terraform
+  GKE_MANIFESTS_DIR: clusters/gke-europe-west1/manifests
 
 tasks:
   # === Image Building ===
@@ -43,6 +45,19 @@ tasks:
       - echo "=== DC2 Environment Setup ==="
       - terraform output -json environment_setup | jq -r .bash_export
 
+  deploy-gke:
+    desc: "Deploy GKE cluster (europe-west1)"
+    dir: "{{.GKE_DIR}}"
+    cmds:
+      - terraform init
+      - terraform apply -auto-approve
+      - echo "=== GKE Cluster Info ==="
+      - terraform output cluster_info
+      - echo "=== GKE Auth Command ==="
+      - terraform output gke_auth_command
+      - echo "=== kubectl Commands ==="
+      - terraform output kubectl_commands
+
   deploy-both:
     desc: "Deploy both DC1 and DC2 clusters (sequential)"
     cmds:
@@ -53,6 +68,13 @@ tasks:
       - echo "1. Run 'nomad setup consul -y' on each cluster's server nodes"
       - echo "2. Use task ssh-dc1-server and task ssh-dc2-server to connect"
       - echo "3. Then deploy networking and monitoring"
+
+  deploy-all:
+    desc: "Deploy DC1, DC2, and GKE clusters"
+    cmds:
+      - task: deploy-both
+      - task: deploy-gke
+      - echo "=== All clusters deployed ==="
 
   # === Consul-Nomad Integration Setup ===
 
@@ -119,32 +141,46 @@ tasks:
       - echo "=== Traefik deployed to both clusters ==="
 
   deploy-monitoring-dc1:
-    desc: "Deploy Prometheus and Grafana to DC1"
+    desc: "Deploy Prometheus, Grafana, and Loki to DC1"
     dir: "clusters/dc1"
     vars:
       NOMAD_ADDR:
         sh: cd terraform && terraform output -json hashistack_urls | jq -r '.nomad.api'
       NOMAD_TOKEN:
         sh: cd terraform && terraform output -json auth_tokens | jq -r '.nomad_token'
+      CONSUL_HTTP_ADDR:
+        sh: cd terraform && terraform output -json hashistack_urls | jq -r '.consul.api'
+      CONSUL_HTTP_TOKEN:
+        sh: cd terraform && terraform output -json auth_tokens | jq -r '.consul_token'
     cmds:
+      - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job run jobs/monitoring/loki.hcl
       - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job run jobs/monitoring/prometheus.hcl
       - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job run jobs/monitoring/grafana.hcl
-      - echo "Monitoring stack deployed to DC1"
+      - export CONSUL_HTTP_ADDR="{{.CONSUL_HTTP_ADDR}}" && export CONSUL_HTTP_TOKEN="{{.CONSUL_HTTP_TOKEN}}" && consul config write ../consul/peering/configs/proxy-defaults-access-logs.hcl
+      - echo "Monitoring stack with logging deployed to DC1"
+      - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job status loki
       - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job status prometheus
       - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job status grafana
 
   deploy-monitoring-dc2:
-    desc: "Deploy Prometheus and Grafana to DC2"
+    desc: "Deploy Prometheus, Grafana, and Loki to DC2"
     dir: "clusters/dc2"
     vars:
       NOMAD_ADDR:
         sh: cd terraform && terraform output -json hashistack_urls | jq -r '.nomad.api'
       NOMAD_TOKEN:
         sh: cd terraform && terraform output -json auth_tokens | jq -r '.nomad_token'
+      CONSUL_HTTP_ADDR:
+        sh: cd terraform && terraform output -json hashistack_urls | jq -r '.consul.api'
+      CONSUL_HTTP_TOKEN:
+        sh: cd terraform && terraform output -json auth_tokens | jq -r '.consul_token'
     cmds:
+      - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job run jobs/monitoring/loki.hcl
       - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job run jobs/monitoring/prometheus.hcl
       - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job run jobs/monitoring/grafana.hcl
-      - echo "Monitoring stack deployed to DC2"
+      - export CONSUL_HTTP_ADDR="{{.CONSUL_HTTP_ADDR}}" && export CONSUL_HTTP_TOKEN="{{.CONSUL_HTTP_TOKEN}}" && consul config write ../consul/peering/configs/proxy-defaults-access-logs.hcl
+      - echo "Monitoring stack with logging deployed to DC2"
+      - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job status loki
       - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job status prometheus
       - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job status grafana
 
@@ -176,6 +212,56 @@ tasks:
     dir: "{{.DC2_DIR}}"
     cmds:
       - terraform output cluster_info || echo "No cluster info available"
+
+  status-gke:
+    desc: "Show GKE status"
+    dir: "{{.GKE_DIR}}"
+    cmds:
+      - terraform output cluster_info || echo "No GKE cluster info available"
+      - echo "=== kubectl Authentication ==="
+      - terraform output gke_auth_command || echo "No auth command available"
+
+  # === GKE Consul Integration ===
+
+  gke-auth:
+    desc: "Authenticate kubectl with GKE cluster"
+    dir: "{{.GKE_DIR}}"
+    cmds:
+      - terraform output -raw gke_auth_command | sh
+      - kubectl cluster-info
+
+  gke-setup-secrets:
+    desc: "Setup Consul secrets for GKE (requires CONSUL_ENT_LICENSE)"
+    dir: "{{.GKE_MANIFESTS_DIR}}"
+    cmds:
+      - kubectl create namespace consul --dry-run=client -o yaml | kubectl apply -f -
+      - ./setup-secrets-auto.sh
+
+  gke-deploy-consul:
+    desc: "Deploy Consul to GKE cluster"
+    dir: "{{.GKE_MANIFESTS_DIR}}"
+    cmds:
+      - helm repo add hashicorp https://helm.releases.hashicorp.com
+      - helm repo update
+      - helm install consul hashicorp/consul --namespace consul --values gke-consul-values.yaml
+
+  gke-status-consul:
+    desc: "Check Consul status in GKE"
+    cmds:
+      - echo "=== Consul Pods ==="
+      - kubectl get pods -n consul
+      - echo ""
+      - echo "=== Consul Services ==="
+      - kubectl get svc -n consul
+      - echo ""
+      - echo "=== Recent Logs ==="
+      - kubectl logs -n consul -l app=consul --tail=10
+
+  gke-cleanup-consul:
+    desc: "Remove Consul from GKE"
+    cmds:
+      - helm uninstall consul -n consul || echo "Consul not installed"
+      - kubectl delete namespace consul || echo "Namespace not found"
 
   show-urls:
     desc: "Show all access URLs for both clusters"
@@ -335,11 +421,24 @@ tasks:
     cmds:
       - terraform destroy -auto-approve
 
+  destroy-gke:
+    desc: "Destroy GKE cluster"
+    dir: "{{.GKE_DIR}}"
+    cmds:
+      - terraform destroy -auto-approve
+
   destroy-both:
     desc: "Destroy both clusters"
     cmds:
       - task: destroy-dc1
       - task: destroy-dc2
+
+  destroy-all:
+    desc: "Destroy all clusters (DC1, DC2, GKE)"
+    cmds:
+      - task: destroy-dc1
+      - task: destroy-dc2
+      - task: destroy-gke
 
   # === Cluster Peering ===
 

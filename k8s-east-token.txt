@@ -1,0 +1,10 @@
+AccessorID:       af06e8e0-2e22-8b62-b31f-bf257b12097d
+SecretID:         d07ed43a-0c42-8256-4daf-8727bf8f7542
+Partition:        k8s-east
+Namespace:        default
+Description:      k8s-east partition token
+Local:            false
+Create Time:      2025-07-11 11:02:40.807651701 +0000 UTC
+Policies:
+   69e25bb2-7a96-6036-e174-eb2d244cc9e2 - k8s-east-partition-policy
+
