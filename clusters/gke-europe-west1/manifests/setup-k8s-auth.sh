@@ -5,9 +5,9 @@ set -e
 
 echo "=== Setting up Kubernetes Auth Method for k8s-test partition ==="
 
-# Set Consul server details
-export CONSUL_HTTP_ADDR="http://34.175.140.62:8500"
-export CONSUL_HTTP_TOKEN="ConsulR0cks"
+# Set Consul server details (replace with your values)
+export CONSUL_HTTP_ADDR="http://<consul-server-ip>:8500"
+export CONSUL_HTTP_TOKEN="<your-bootstrap-token>"
 
 echo "Using Consul server: $CONSUL_HTTP_ADDR"
 

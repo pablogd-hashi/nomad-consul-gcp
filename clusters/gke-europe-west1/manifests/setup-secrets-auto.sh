@@ -43,9 +43,11 @@ if [ -z "$CONSUL_LICENSE" ]; then
 fi
 
 # Get bootstrap token
-BOOTSTRAP_TOKEN=$(terraform output -raw auth_tokens 2>/dev/null | jq -r '.consul_token' 2>/dev/null || echo "Consu43v3r")
+BOOTSTRAP_TOKEN=$(terraform output -raw auth_tokens 2>/dev/null | jq -r '.consul_token' 2>/dev/null || echo "")
 if [ "$BOOTSTRAP_TOKEN" == "null" ] || [ -z "$BOOTSTRAP_TOKEN" ]; then
-    BOOTSTRAP_TOKEN="Consu43v3r"
+    echo "Error: Bootstrap token not found in terraform output."
+    echo "Please run terraform apply first or set token manually."
+    exit 1
 fi
 
 # Get k8s-west partition token

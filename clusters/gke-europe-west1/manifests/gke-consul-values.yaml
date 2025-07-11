@@ -54,11 +54,11 @@ global:
 externalServers:
   enabled: true
   hosts:
-    - "34.175.140.62"
-    - "34.175.36.112" 
-    - "34.175.236.196"
+    - "<consul-server-ip-1>"
+    - "<consul-server-ip-2>" 
+    - "<consul-server-ip-3>"
   tlsServerName: server.gcp-dc1.consul
-  k8sAuthMethodHost: https://34.34.153.88
+  k8sAuthMethodHost: https://<gke-api-endpoint>
 
 # Server Configuration (disabled since we're connecting to external)
 server:
