@@ -1,0 +1,98 @@
+# Terraform
+**/.terraform/
+**/.terraform.lock.hcl
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/terraform.tfvars
+**/.terraform.tfvars
+**/crash.log
+**/override.tf
+**/override.tf.json
+**/*_override.tf
+**/*_override.tf.json
+
+# Packer
+**/packer_cache/
+**/manifest*.json
+**/*.pkrvars.hcl
+!**/common.pkrvars.hcl
+
+# Consul & Nomad
+**/consul.d/
+**/nomad.d/
+**/*.lic
+**/*-token
+
+# SSH Keys
+**/*.pem
+**/*.key
+**/id_rsa*
+**/id_ed25519*
+
+# Environment files
+**/.env
+**/.env.local
+**/.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+**/*.log
+
+# Temporary files
+**/tmp/
+**/temp/
+
+# Backup files
+**/*.bak
+**/*.backup
+
+# Test outputs
+**/test-results/
+**/coverage/
+
+# Claude Code files (keep local only)
+CLAUDE.md
+
+# Unused/Legacy files
+Taskfile.yml
+TermsOfEvaluation.txt
+REPO_STRUCTURE.md
+DEPLOYMENT-CHECKLIST.md
+quick-minikube-test.sh
+archived/
+scripts/nomad-ui-auth.sh
+consul_1.21.0+ent_darwin_arm64.zip
+EULA.txt
+**/k8s-*-token.txt
+gke-europe-west1-token.txt
+k8s-east-token.txt
+minikube-consul-test.yaml
+setup-k8s-auth-method.sh
+setup-minikube-secrets.sh
+
+# GKE Manifests and Helm (environment-specific, not for git)
+**/manifests/
+**/helm/
+clusters/**/manifests/
+clusters/**/helm/
+**/gke-consul-values.yaml
+**/values.yaml
+**/setup-secrets*.sh
+**/create-partition*.sh
+**/deploy-*.sh
+**/*-app.yaml

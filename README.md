@@ -51,51 +51,83 @@ This project deploys a complete HashiCorp ecosystem with:
 
 ### Using the Taskfile (Recommended)
 
-This project includes a comprehensive Taskfile for easy management of single or multi-cluster deployments:
+This project includes a modular Taskfile system organized into logical sections for easy management:
 
 ```bash
-# Show all available tasks and help
+# Show all available task sections and help
 task help
 task                    # Same as 'task help'
 
-# Show cluster peering instructions  
-task peering:help
+# List all available tasks
+task --list
 ```
 
-### Basic Deployment Tasks
+### Modular Task Structure
+
+The Taskfile is now organized into sections using namespace prefixes:
+
+- **`infra:`** - Infrastructure deployment (Nomad/Consul VMs)
+- **`gke:`** - GKE Kubernetes cluster management  
+- **`apps:`** - Application deployment (Nomad jobs)
+- **`peering:`** - Consul cluster peering
+
+### Quick Start Commands
 
 ```bash
-# Build HashiStack images first (REQUIRED)
-task build-images        # Build custom images with Packer
+# === Main Commands ===
+task deploy-all           # Deploy DC1, DC2, and GKE clusters
+task deploy-all-gke       # Deploy both GKE clusters only
+task status               # Show infrastructure status
+task destroy-all          # Destroy all clusters
 
-# Deploy single cluster
-task deploy-dc1          # Deploy DC1 (europe-southwest1)
-task deploy-dc2          # Deploy DC2 (europe-west1)
+# === Infrastructure (Nomad/Consul VMs) ===
+task infra:build-images   # Build custom images with Packer (REQUIRED first)
+task infra:deploy-both    # Deploy DC1 and DC2 clusters
+task infra:deploy-dc1     # Deploy DC1 cluster (europe-southwest1)
+task infra:deploy-dc2     # Deploy DC2 cluster (europe-west1)
+task infra:ssh-dc1-server # SSH to DC1 server
+task infra:ssh-dc2-server # SSH to DC2 server
+task infra:destroy-both   # Destroy both clusters
 
-# Deploy both clusters
-task deploy-both         # Deploy both DC1 and DC2
+# === GKE Kubernetes Clusters ===
+task gke:deploy-gke       # Deploy GKE West1 cluster
+task gke:deploy-gke-southwest # Deploy GKE Southwest cluster
+task gke:auth             # Authenticate with GKE West1
+task gke:auth-southwest   # Authenticate with GKE Southwest
+task gke:deploy-consul    # Deploy Consul to GKE West1 (k8s-west1 partition)
+task gke:deploy-consul-southwest # Deploy Consul to GKE Southwest (k8s-southwest partition)
+task gke:status-both      # Check both GKE clusters
 
-# Deploy networking (Traefik)
-task deploy-networking   # Deploy Traefik to both clusters
+# === Applications (Nomad Jobs) ===
+task apps:deploy-traefik  # Deploy Traefik to both clusters
+task apps:deploy-monitoring # Deploy Prometheus/Grafana stack
+task apps:deploy-demo-apps # Deploy demo applications
+task apps:show-urls       # Show all access URLs
 
-# Deploy monitoring (Prometheus + Grafana)
-task deploy-monitoring   # Deploy monitoring stack to both clusters
+# === Consul Cluster Peering ===
+task peering:help         # Show peering setup instructions
+task peering:setup        # Start peering setup
+task peering:establish    # Establish peering connection
+task peering:verify       # Verify peering works
 
-# Full stack deployment
-task deploy-full-stack   # Deploy infrastructure + networking + monitoring
+# === Environment Variables ===
+task infra:eval-vars      # Show environment setup for both clusters
+task infra:eval-vars-dc1  # Show DC1 environment variables
+task infra:eval-vars-dc2  # Show DC2 environment variables
 
-# Get environment variables
-task eval-vars           # Show environment setup for both clusters
-task eval-vars-dc1       # Show DC1 environment variables
-task eval-vars-dc2       # Show DC2 environment variables
-
-# Show all access URLs
-task show-urls           # Display all service URLs for both clusters
-
-# Cluster status
-task status-dc1          # Show DC1 status
-task status-dc2          # Show DC2 status
+# === Status and Information ===
+task infra:status-dc1     # Show DC1 status
+task infra:status-dc2     # Show DC2 status
+task infra:get-server-ips # Get external server IPs for both clusters
 ```
+
+### Benefits of Modular Structure
+
+- **Organized Sections**: Tasks grouped by logical function (infrastructure, GKE, applications, peering)
+- **Namespace Prefixes**: Clear separation using `infra:`, `gke:`, `apps:`, `peering:` prefixes
+- **Maintainable**: Each section is in a separate file (`tasks/infrastructure.yml`, `tasks/gke.yml`, etc.)
+- **Discoverable**: Use `task <section>:` to see section-specific tasks
+- **Preserved Functionality**: All original tasks work with new namespaces
 
 ### Manual Deployment (Alternative)
 
@@ -254,28 +286,26 @@ task status-dc2
 ### Using Taskfile (Recommended)
 ```bash
 # Setup Consul-Nomad integration (REQUIRED after infrastructure deployment)
-task setup-consul-nomad-both    # Setup integration for both clusters
-task setup-consul-nomad-dc1     # Setup integration for DC1 only
-task setup-consul-nomad-dc2     # Setup integration for DC2 only
+task infra:setup-consul-nomad-both    # Setup integration for both clusters
+task infra:setup-consul-nomad-dc1     # Setup integration for DC1 only
+task infra:setup-consul-nomad-dc2     # Setup integration for DC2 only
 
 # Deploy networking (Traefik) to both clusters
-task deploy-traefik
+task apps:deploy-traefik
 
 # Deploy monitoring stack to both clusters
-task deploy-monitoring
+task apps:deploy-monitoring
 
 # Deploy to specific cluster
-task deploy-traefik-dc1    # Deploy Traefik to DC1 only
-task deploy-traefik-dc2    # Deploy Traefik to DC2 only
-task deploy-monitoring-dc1 # Deploy monitoring to DC1 only
-task deploy-monitoring-dc2 # Deploy monitoring to DC2 only
+task apps:deploy-traefik-dc1    # Deploy Traefik to DC1 only
+task apps:deploy-traefik-dc2    # Deploy Traefik to DC2 only
+task apps:deploy-monitoring-dc1 # Deploy monitoring to DC1 only
+task apps:deploy-monitoring-dc2 # Deploy monitoring to DC2 only
 
-# Stop all jobs in a cluster
-task stop-jobs-dc1
-task stop-jobs-dc2
-
-# Complete deployment workflow
-task deploy-full-stack     # Deploy infrastructure + setup integration + networking + monitoring
+# Deploy demo applications
+task apps:deploy-demo-apps
+task apps:deploy-demo-apps-dc1
+task apps:deploy-demo-apps-dc2
 ```
 
 ### Manual Deployment
@@ -306,11 +336,16 @@ nomad job run jobs/monitoring/grafana.hcl
 
 ### Demo Applications
 ```bash
-# Deploy demo apps to both clusters
+# Using Taskfile (Recommended)
+task apps:deploy-demo-apps     # Deploy to both clusters
+task apps:deploy-demo-apps-dc1 # Deploy to DC1 only
+task apps:deploy-demo-apps-dc2 # Deploy to DC2 only
+
+# Manual deployment
 nomad job run jobs/terramino.nomad.hcl
 nomad job status
 
-# Deploy API Gateway and demo services
+# Deploy API Gateway and demo services manually
 nomad job run nomad-apps/api-gw.nomad/api-gw.nomad.hcl
 nomad job run nomad-apps/demo-fake-service/backend.nomad.hcl
 nomad job run nomad-apps/demo-fake-service/frontend.nomad.hcl
@@ -461,33 +496,33 @@ The load balancer exposes the following ports (limited to 5 by GCP):
 ### Taskfile Management
 ```bash
 # Infrastructure management
-task deploy-both          # Deploy both clusters
-task destroy-both         # Destroy both clusters
-task deploy-full-stack    # Deploy complete stack with networking and monitoring
+task infra:deploy-both          # Deploy both clusters
+task infra:destroy-both         # Destroy both clusters
+task deploy-all                 # Deploy DC1, DC2, and GKE clusters
 
 # Application management
-task deploy-networking    # Deploy Traefik to both clusters
-task deploy-monitoring    # Deploy Prometheus + Grafana to both clusters
-task stop-jobs-dc1       # Stop all jobs in DC1
-task stop-jobs-dc2       # Stop all jobs in DC2
+task apps:deploy-traefik        # Deploy Traefik to both clusters
+task apps:deploy-monitoring     # Deploy Prometheus + Grafana to both clusters
+task apps:deploy-demo-apps      # Deploy demo applications to both clusters
 
 # Status and monitoring
-task show-urls           # Show all service URLs
-task eval-vars           # Show environment variables for both clusters
-task status-dc1          # Show DC1 cluster status
-task status-dc2          # Show DC2 cluster status
+task apps:show-urls             # Show all service URLs
+task infra:eval-vars            # Show environment variables for both clusters
+task infra:status-dc1           # Show DC1 cluster status
+task infra:status-dc2           # Show DC2 cluster status
+task status                     # Show overall infrastructure status
 ```
 
 ### Cluster Management
 ```bash
 # Check cluster health (DC1)
-task eval-vars-dc1 && eval "$(task eval-vars-dc1 --silent)"
+task infra:eval-vars-dc1 && eval "$(task infra:eval-vars-dc1 --silent)"
 consul members
 nomad server members
 nomad node status
 
 # Check cluster health (DC2)
-task eval-vars-dc2 && eval "$(task eval-vars-dc2 --silent)"
+task infra:eval-vars-dc2 && eval "$(task infra:eval-vars-dc2 --silent)"
 consul members
 nomad server members
 nomad node status
@@ -503,8 +538,8 @@ nomad job scale <job-name> <count>
 ### Troubleshooting
 ```bash
 # Check service status on nodes (SSH required)
-task ssh-dc1-server  # SSH to DC1 server
-task ssh-dc2-server  # SSH to DC2 server
+task infra:ssh-dc1-server  # SSH to DC1 server
+task infra:ssh-dc2-server  # SSH to DC2 server
 
 # On server nodes:
 sudo systemctl status consul
@@ -525,7 +560,7 @@ terraform plan
 terraform apply
 
 # Update both clusters
-task deploy-both
+task infra:deploy-both
 
 # Rolling update (managed instance groups handle this automatically)
 # Check status in GCP Console > Compute Engine > Instance Groups
@@ -534,7 +569,12 @@ task deploy-both
 ## 📁 Multi-Cluster Project Structure
 
 ```
-├── Taskfile.yml                      # Task automation for multi-cluster management
+├── Taskfile.yml                      # Main task automation (modular structure)
+├── tasks/                            # Modular taskfile sections
+│   ├── infrastructure.yml            # Infrastructure deployment tasks
+│   ├── gke.yml                      # GKE cluster management tasks
+│   ├── applications.yml             # Application deployment tasks
+│   └── peering.yml                  # Consul cluster peering tasks
 ├── docs/                              # Documentation and assets
 │   └── images/                        # Architecture diagrams and images
 ├── clusters/                          # Nomad + Consul on GCE

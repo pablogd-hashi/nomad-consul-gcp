@@ -3,7 +3,7 @@ terraform {
     organization = "pablogd-hcp-test"
 
     workspaces {
-      name = "GKE-europe-west1"
+      name = "GKE-southwest"
     }
   }
 }
@@ -34,18 +34,18 @@ resource "google_compute_network" "gke_network" {
 # Subnet creation
 resource "google_compute_subnetwork" "gke_subnet" {
   name          = "${var.cluster_name}-gke-subnet"
-  ip_cidr_range = "10.10.0.0/24"
+  ip_cidr_range = "10.20.0.0/24"
   region        = var.gcp_region
   network       = google_compute_network.gke_network.id
 
   secondary_ip_range {
     range_name    = "gke-pod-range"
-    ip_cidr_range = "10.11.0.0/16"
+    ip_cidr_range = "10.21.0.0/16"
   }
 
   secondary_ip_range {
     range_name    = "gke-service-range"
-    ip_cidr_range = "10.12.0.0/16"
+    ip_cidr_range = "10.22.0.0/16"
   }
 }
 
@@ -81,7 +81,7 @@ resource "google_container_cluster" "primary" {
   private_cluster_config {
     enable_private_nodes    = false  # Nodes get public IPs
     enable_private_endpoint = false  # Control plane endpoint is public
-    master_ipv4_cidr_block  = "172.16.0.0/28"
+    master_ipv4_cidr_block  = "172.17.0.0/28"
   }
 
   # Master authorized networks

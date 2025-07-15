@@ -1,0 +1,204 @@
+version: '3'
+
+# GKE cluster deployment and management tasks
+tasks:
+  # === GKE Deployment ===
+  deploy-gke:
+    desc: "Deploy GKE cluster (europe-west1)"
+    dir: "{{.GKE_DIR}}"
+    cmds:
+      - terraform init
+      - terraform apply -auto-approve
+      - echo "=== GKE Cluster Info ==="
+      - terraform output cluster_info
+      - echo "=== GKE Auth Command ==="
+      - terraform output gke_auth_command
+      - echo "=== kubectl Commands ==="
+      - terraform output kubectl_commands
+
+  deploy-gke-southwest:
+    desc: "Deploy GKE Southwest cluster (europe-southwest1) for admin partitions"
+    dir: "{{.GKE_SW_DIR}}"
+    cmds:
+      - terraform init
+      - terraform apply -auto-approve
+      - echo "=== GKE Southwest Cluster Info ==="
+      - terraform output cluster_info
+      - echo "=== GKE Southwest Auth Command ==="
+      - terraform output gke_auth_command
+      - echo "=== kubectl Commands ==="
+      - terraform output kubectl_commands
+      - echo ""
+      - echo "NEXT STEPS:"
+      - echo "1. Run 'task gke:auth-southwest' to configure kubectl"
+      - echo "2. Run 'task gke:setup-secrets-southwest' to setup Consul secrets"
+      - echo "3. Run 'task gke:deploy-consul-southwest' to install Consul with admin partitions"
+
+  deploy-all-gke:
+    desc: "Deploy both GKE clusters (West1 and Southwest)"
+    cmds:
+      - task: deploy-gke
+      - task: deploy-gke-southwest
+      - echo "=== Both GKE clusters deployed ==="
+
+  # === Authentication ===
+  auth:
+    desc: "Authenticate kubectl with GKE cluster"
+    dir: "{{.GKE_DIR}}"
+    cmds:
+      - terraform output -raw gke_auth_command | sh
+      - kubectl cluster-info
+
+  auth-southwest:
+    desc: "Authenticate kubectl with GKE Southwest cluster"
+    dir: "{{.GKE_SW_DIR}}"
+    cmds:
+      - terraform output -raw gke_auth_command | sh
+      - kubectl cluster-info
+      - echo "Connected to GKE Southwest cluster"
+      - echo "Region europe-southwest1"
+      - echo "Ready for admin partition setup"
+
+  # === Consul Setup ===
+  setup-secrets:
+    desc: "Setup Consul secrets for GKE (requires CONSUL_ENT_LICENSE)"
+    dir: "{{.GKE_MANIFESTS_DIR}}"
+    cmds:
+      - kubectl create namespace consul --dry-run=client -o yaml | kubectl apply -f -
+      - ./setup-secrets-auto.sh
+
+  setup-secrets-southwest:
+    desc: "Setup Consul secrets for GKE Southwest (requires CONSUL_ENT_LICENSE)"
+    dir: "{{.GKE_SW_MANIFESTS_DIR}}"
+    cmds:
+      - echo "Setting up Consul secrets for GKE Southwest"
+      - kubectl create namespace consul --dry-run=client -o yaml | kubectl apply -f -
+      - echo "Note - Copy secrets setup script from gke-europe-west1/manifests/"
+      - echo "Or run cp ../gke-europe-west1/manifests/setup-secrets-auto.sh ."
+      - echo "Then run the setup script for admin partition configuration"
+
+  deploy-consul:
+    desc: "Deploy Consul to GKE West1 cluster (k8s-west1 partition)"
+    dir: "{{.GKE_HELM_DIR}}"
+    cmds:
+      - helm repo add hashicorp https://helm.releases.hashicorp.com
+      - helm repo update
+      - echo "Deploying Consul to GKE West1 with k8s-west1 partition..."
+      - helm install consul hashicorp/consul --namespace consul --values values.yaml
+      - echo "Consul deployed to k8s-west1 partition"
+      - echo "Check status kubectl get pods -n consul"
+
+  deploy-consul-southwest:
+    desc: "Deploy Consul to GKE Southwest with k8s-southwest partition"
+    dir: "{{.GKE_SW_HELM_DIR}}"
+    cmds:
+      - helm repo add hashicorp https://helm.releases.hashicorp.com
+      - helm repo update
+      - echo "Deploying Consul to GKE Southwest with k8s-southwest partition..."
+      - helm install consul hashicorp/consul --namespace consul --values values.yaml
+      - echo "Consul deployed to k8s-southwest partition"
+      - echo "Check status kubectl get pods -n consul"
+
+  upgrade-consul:
+    desc: "Upgrade Consul in GKE West1"
+    dir: "{{.GKE_HELM_DIR}}"
+    cmds:
+      - helm repo update
+      - helm upgrade consul hashicorp/consul --namespace consul --values values.yaml
+
+  upgrade-consul-southwest:
+    desc: "Upgrade Consul in GKE Southwest"
+    dir: "{{.GKE_SW_HELM_DIR}}"
+    cmds:
+      - helm repo update
+      - helm upgrade consul hashicorp/consul --namespace consul --values values.yaml
+
+  # === Status and Monitoring ===
+  status:
+    desc: "Show GKE status"
+    dir: "{{.GKE_DIR}}"
+    cmds:
+      - terraform output cluster_info || echo "No GKE cluster info available"
+      - echo "=== kubectl Authentication ==="
+      - terraform output gke_auth_command || echo "No auth command available"
+
+  status-southwest:
+    desc: "Show GKE Southwest status"
+    dir: "{{.GKE_SW_DIR}}"
+    cmds:
+      - terraform output cluster_info || echo "No GKE Southwest cluster info available"
+      - echo "=== kubectl Authentication ==="
+      - terraform output gke_auth_command || echo "No auth command available"
+
+  status-both:
+    desc: "Check Consul status in both GKE clusters"
+    cmds:
+      - echo "=== GKE West1 (k8s-west1) Status ==="
+      - task: auth
+      - kubectl get pods -n consul -o wide
+      - echo ""
+      - echo "=== GKE Southwest (k8s-southwest) Status ==="
+      - task: auth-southwest
+      - kubectl get pods -n consul -o wide
+
+  status-consul:
+    desc: "Check Consul status in GKE"
+    cmds:
+      - echo "=== Consul Pods ==="
+      - kubectl get pods -n consul
+      - echo ""
+      - echo "=== Consul Services ==="
+      - kubectl get svc -n consul
+      - echo ""
+      - echo "=== Recent Logs ==="
+      - kubectl logs -n consul -l app=consul --tail=10
+
+  # === Demo Applications ===
+  deploy-demo:
+    desc: "Deploy demo applications with Consul Connect"
+    dir: "{{.GKE_MANIFESTS_DIR}}/demo-apps"
+    cmds:
+      - ./deploy-demo.sh
+
+  status-demo:
+    desc: "Check demo application status"
+    cmds:
+      - echo "=== Frontend Namespace ==="
+      - kubectl get pods,svc -n frontend
+      - echo ""
+      - echo "=== Backend Namespace ==="
+      - kubectl get pods,svc -n backend
+      - echo ""
+      - echo "=== Frontend LoadBalancer URL ==="
+      - kubectl get svc frontend -n frontend -o jsonpath='{.status.loadBalancer.ingress[0].ip}' && echo ":9090" || echo "LoadBalancer IP pending..."
+
+  # === Cleanup ===
+  cleanup-consul:
+    desc: "Remove Consul from GKE"
+    cmds:
+      - helm uninstall consul -n consul || echo "Consul not installed"
+      - kubectl delete namespace consul || echo "Namespace not found"
+
+  cleanup-demo:
+    desc: "Remove demo applications"
+    cmds:
+      - kubectl delete namespace frontend --ignore-not-found
+      - kubectl delete namespace backend --ignore-not-found
+
+  destroy-gke:
+    desc: "Destroy GKE cluster"
+    dir: "{{.GKE_DIR}}"
+    cmds:
+      - terraform destroy -auto-approve
+
+  destroy-gke-southwest:
+    desc: "Destroy GKE Southwest cluster"
+    dir: "{{.GKE_SW_DIR}}"
+    cmds:
+      - terraform destroy -auto-approve
+
+  destroy-all:
+    desc: "Destroy all GKE clusters"
+    cmds:
+      - task: destroy-gke
+      - task: destroy-gke-southwest
