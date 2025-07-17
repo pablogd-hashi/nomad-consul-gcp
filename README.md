@@ -129,6 +129,62 @@ task infra:get-server-ips # Get external server IPs for both clusters
 - **Discoverable**: Use `task <section>:` to see section-specific tasks
 - **Preserved Functionality**: All original tasks work with new namespaces
 
+## 🔧 Variable Configuration
+
+### HCP Terraform Configuration (Recommended)
+
+If using HCP Terraform, organize your variables into variable sets for optimal reusability:
+
+#### Variable Set: "HashiStack Common" (reusable across all workspaces)
+```hcl
+# Enterprise Licenses (mark as sensitive)
+consul_license = "02MV4UU43BK5HGYY..."  # Your Consul Enterprise license
+nomad_license = "02MV4UU43BK5HGYY..."   # Your Nomad Enterprise license
+
+# HashiCorp Versions
+consul_version = "1.17.0+ent"
+nomad_version = "1.7.2+ent"
+
+# Security Settings
+enable_tls = true
+doormat-accountid = "your-doormat-id"  # If using Doormat authentication
+```
+
+#### Variable Set: "GCP Common" (reusable across GCP workspaces)
+```hcl
+# GCP Configuration
+gcp_project = "hc-1031dcc8d7c24bfdbb4c08979b0"
+gcp_sa = "hc-1031dcc8d7c24bfdbb4c08979b0"
+hcp_project_id = "your-hcp-project-id"
+dns_zone = "your-dns-zone-name"
+
+# Instance Configuration
+gcp_instance = "e2-standard-2"
+machine_type_client = "e2-standard-4"
+subnet_cidr = "10.0.0.0/16"
+
+# SSH Access (mark as sensitive)
+ssh_public_key = "ssh-rsa AAAAB3NzaC1yc2EAAA..."
+```
+
+#### Workspace-Specific Variables
+
+**DC1 Workspace (DB-cluster-1):**
+```hcl
+gcp_region = "europe-southwest1"
+cluster_name = "gcp-dc1"
+owner = "pablo-diaz"  # Note: Use hyphens, not dots for GCP compatibility
+```
+
+**DC2 Workspace (DC-cluster-2):**
+```hcl
+gcp_region = "europe-west1"
+cluster_name = "gcp-dc2"
+owner = "pablo-diaz"  # Note: Use hyphens, not dots for GCP compatibility
+```
+
+> **⚠️ Important**: GCP tags must match the regex `(?:[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?)`. Use hyphens instead of dots in the `owner` variable.
+
 ### Manual Deployment (Alternative)
 
 #### 1. Build Custom Images
@@ -151,20 +207,30 @@ cp terraform.tfvars.example terraform.auto.tfvars
 
 Required variables for each cluster:
 ```hcl
-# DC1 Configuration
+# DC1 Configuration (clusters/dc1/terraform/terraform.auto.tfvars)
 gcp_region = "europe-southwest1"
 gcp_project = "your-gcp-project-id" 
 gcp_sa = "your-service-account@project.iam.gserviceaccount.com"
+gcp_instance = "e2-standard-2"
+machine_type_client = "e2-standard-4"
+subnet_cidr = "10.0.0.0/16"
 cluster_name = "gcp-dc1"
-owner = "your-alias"
+owner = "pablo-diaz"  # Note: Use hyphens, not dots for GCP compatibility
+hcp_project_id = "your-hcp-project-id"
+dns_zone = "your-dns-zone-name"        # Optional: for FQDN access
+ssh_public_key = "ssh-rsa AAAAB3NzaC1yc2EAAA..."
+
+# HashiCorp Configuration
 consul_license = "02MV4UU43BK5HGYY..." # Your Consul Enterprise license
 nomad_license = "02MV4UU43BK5HGYY..."  # Your Nomad Enterprise license
-dns_zone = "your-dns-zone-name"        # Optional: for FQDN access
+consul_version = "1.17.0+ent"
+nomad_version = "1.7.2+ent"
+enable_tls = true
 
-# DC2 Configuration (modify region and cluster name)
+# DC2 Configuration (clusters/dc2/terraform/terraform.auto.tfvars)
 gcp_region = "europe-west1"
 cluster_name = "gcp-dc2"
-# Other variables remain the same
+# All other variables remain the same
 ```
 
 #### 3. Deploy Infrastructure

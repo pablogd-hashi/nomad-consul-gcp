@@ -1,11 +1,15 @@
 version: '3'
 
+vars:
+  DC1_DIR: "../clusters/dc1/terraform"
+  DC2_DIR: "../clusters/dc2/terraform"
+
 # Application deployment tasks for Nomad clusters
 tasks:
   # === Traefik Deployment ===
   deploy-traefik-dc1:
     desc: "Deploy Traefik to DC1"
-    dir: "clusters/dc1"
+    dir: "../clusters/dc1"
     vars:
       NOMAD_ADDR:
         sh: cd terraform && terraform output -json hashistack_urls | jq -r '.nomad.api'
@@ -16,9 +20,38 @@ tasks:
       - echo "Traefik deployed to DC1"
       - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job status traefik
 
+  deploy-traefik-https-dc1:
+    desc: "Deploy Traefik with HTTPS and Consul service registration to DC1"
+    dir: "../clusters/dc1"
+    vars:
+      NOMAD_ADDR:
+        sh: cd terraform && terraform output -json hashistack_urls | jq -r '.nomad.api'
+      NOMAD_TOKEN:
+        sh: cd terraform && terraform output -json auth_tokens | jq -r '.nomad_token'
+      CONSUL_HTTP_ADDR:
+        sh: cd terraform && terraform output -json hashistack_urls | jq -r '.consul.api'
+      CONSUL_HTTP_TOKEN:
+        sh: cd terraform && terraform output -json auth_tokens | jq -r '.consul_token'
+    cmds:
+      - echo "Deploying Traefik with HTTPS support to DC1..."
+      - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job run jobs/monitoring/traefik.hcl
+      - echo "Registering Traefik services in Consul..."
+      - export CONSUL_HTTP_ADDR="{{.CONSUL_HTTP_ADDR}}" && export CONSUL_HTTP_TOKEN="{{.CONSUL_HTTP_TOKEN}}" && consul services register jobs/monitoring/traefik-consul-service.hcl
+      - echo "Traefik HTTPS deployment complete!"
+      - echo "=== Traefik Status ==="
+      - export NOMAD_ADDR="{{.NOMAD_ADDR}}" && export NOMAD_TOKEN="{{.NOMAD_TOKEN}}" && nomad job status traefik
+      - echo "=== Consul Services ==="
+      - export CONSUL_HTTP_ADDR="{{.CONSUL_HTTP_ADDR}}" && export CONSUL_HTTP_TOKEN="{{.CONSUL_HTTP_TOKEN}}" && consul catalog services | grep traefik
+      - echo "=== Access URLs ==="
+      - echo "Traefik Dashboard - https://traefik.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com"
+      - echo "Prometheus - https://prometheus.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com"
+      - echo "Grafana - https://grafana.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com"
+      - echo "Consul UI - https://consul.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com"
+      - echo "Nomad UI - https://nomad.hc-1031dcc8d7c24bfdbb4c08979b0.gcp.sbx.hashicorpdemo.com"
+
   deploy-traefik-dc2:
     desc: "Deploy Traefik to DC2"
-    dir: "clusters/dc2"
+    dir: "../clusters/dc2"
     vars:
       NOMAD_ADDR:
         sh: cd terraform && terraform output -json hashistack_urls | jq -r '.nomad.api'
@@ -39,7 +72,7 @@ tasks:
   # === Monitoring Stack ===
   deploy-monitoring-dc1:
     desc: "Deploy Prometheus, Grafana, and Loki to DC1"
-    dir: "clusters/dc1"
+    dir: "../clusters/dc1"
     vars:
       NOMAD_ADDR:
         sh: cd terraform && terraform output -json hashistack_urls | jq -r '.nomad.api'
@@ -61,7 +94,7 @@ tasks:
 
   deploy-monitoring-dc2:
     desc: "Deploy Prometheus, Grafana, and Loki to DC2"
-    dir: "clusters/dc2"
+    dir: "../clusters/dc2"
     vars:
       NOMAD_ADDR:
         sh: cd terraform && terraform output -json hashistack_urls | jq -r '.nomad.api'
@@ -91,7 +124,7 @@ tasks:
   # === Demo Applications ===
   deploy-demo-apps-dc1:
     desc: "Deploy demo applications to DC1"
-    dir: "clusters/dc1"
+    dir: "../clusters/dc1"
     vars:
       NOMAD_ADDR:
         sh: cd terraform && terraform output -json hashistack_urls | jq -r '.nomad.api'
@@ -105,7 +138,7 @@ tasks:
 
   deploy-demo-apps-dc2:
     desc: "Deploy demo applications to DC2"
-    dir: "clusters/dc2"
+    dir: "../clusters/dc2"
     vars:
       NOMAD_ADDR:
         sh: cd terraform && terraform output -json hashistack_urls | jq -r '.nomad.api'
@@ -150,6 +183,32 @@ tasks:
       - task: app-ui-dc1
       - task: app-ui-dc2
 
+  # === Traefik UI Access ===
+  traefik-ui-dc1:
+    desc: "Open DC1 Traefik dashboard in browser"
+    dir: "{{.DC1_DIR}}"
+    cmds:
+      - |
+        TRAEFIK_URL="http://$(terraform output -json load_balancers | jq -r '.clients_lb.ip'):8080"
+        echo "Opening DC1 Traefik UI at- $TRAEFIK_URL"
+        open "$TRAEFIK_URL" || echo "Visit- $TRAEFIK_URL"
+
+  traefik-ui-dc2:
+    desc: "Open DC2 Traefik dashboard in browser"
+    dir: "{{.DC2_DIR}}"
+    cmds:
+      - |
+        TRAEFIK_URL="http://$(terraform output -json load_balancers | jq -r '.clients_lb.ip'):8080"
+        echo "Opening DC2 Traefik UI at- $TRAEFIK_URL"
+        open "$TRAEFIK_URL" || echo "Visit- $TRAEFIK_URL"
+
+  traefik-ui:
+    desc: "Show both DC1 and DC2 Traefik UI URLs"
+    cmds:
+      - echo "=== Traefik Dashboard URLs ==="
+      - task: traefik-ui-dc1
+      - task: traefik-ui-dc2
+
   show-urls:
     desc: "Show all access URLs for both clusters"
     cmds:
@@ -157,8 +216,10 @@ tasks:
       - cd {{.DC1_DIR}} && terraform output hashistack_urls || echo "No URLs available"
       - cd {{.DC1_DIR}} && terraform output monitoring_urls || echo "No monitoring URLs available"
       - cd {{.DC1_DIR}} && echo "app-ui = http://$(terraform output -json load_balancers | jq -r '.clients_lb.ip'):8081" || echo "No app-ui URL available"
+      - cd {{.DC1_DIR}} && echo "traefik-ui = http://$(terraform output -json load_balancers | jq -r '.clients_lb.ip'):8080" || echo "No traefik-ui URL available"
       - echo ""
       - echo "=== DC2 URLs ==="
       - cd {{.DC2_DIR}} && terraform output hashistack_urls || echo "No URLs available"
       - cd {{.DC2_DIR}} && terraform output monitoring_urls || echo "No monitoring URLs available"
       - cd {{.DC2_DIR}} && echo "app-ui = http://$(terraform output -json load_balancers | jq -r '.clients_lb.ip'):8081" || echo "No app-ui URL available"
+      - cd {{.DC2_DIR}} && echo "traefik-ui = http://$(terraform output -json load_balancers | jq -r '.clients_lb.ip'):8080" || echo "No traefik-ui URL available"

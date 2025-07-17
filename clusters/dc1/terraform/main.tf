@@ -195,7 +195,7 @@ resource "google_compute_forwarding_rule" "clients-lb" {
   # target    = google_compute_target_pool.vm-pool.self_link
   region = var.gcp_region
   ip_protocol = "TCP"
-  ports = ["80","3000","3100","8080","8081","9090"]
+  ports = ["80","3000","8080","8081","9090"]
 }
 
 

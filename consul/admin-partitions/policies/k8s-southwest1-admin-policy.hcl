@@ -2,7 +2,7 @@
 # Full administrative access within the k8s-southwest1 partition
 
 # Partition-wide permissions
-partition "k8s-southwest1" {
+partition "k8s-southwest" {
   policy = "write"
 }
 

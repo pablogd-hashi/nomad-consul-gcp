@@ -1,5 +1,9 @@
 version: '3'
 
+vars:
+  DC1_DIR: "../clusters/dc1/terraform"
+  DC2_DIR: "../clusters/dc2/terraform"
+
 # Infrastructure deployment tasks for HashiCorp clusters
 tasks:
   # === Image Building ===
@@ -23,7 +27,7 @@ tasks:
       - echo "=== DC1 URLs ==="
       - terraform output hashistack_urls
       - echo "=== DC1 Environment Setup ==="
-      - terraform output -json environment_setup | jq -r .bash_export
+      - terraform output -json environment_setup | jq -r '.bash_export'
 
   deploy-dc2:
     desc: "Deploy DC2 cluster (europe-west1)"
@@ -36,7 +40,7 @@ tasks:
       - echo "=== DC2 URLs ==="
       - terraform output hashistack_urls
       - echo "=== DC2 Environment Setup ==="
-      - terraform output -json environment_setup | jq -r .bash_export
+      - terraform output -json environment_setup | jq -r '.bash_export'
 
   deploy-both:
     desc: "Deploy both DC1 and DC2 clusters (sequential)"
@@ -142,14 +146,14 @@ tasks:
     dir: "{{.DC1_DIR}}"
     cmds:
       - echo "# DC1 Environment Setup"
-      - terraform output -json environment_setup | jq -r .bash_export
+      - terraform output -json environment_setup | jq -r '.bash_export'
 
   eval-vars-dc2:
     desc: "Show environment variables for DC2"
     dir: "{{.DC2_DIR}}"
     cmds:
       - echo "# DC2 Environment Setup"
-      - terraform output -json environment_setup | jq -r .bash_export
+      - terraform output -json environment_setup | jq -r '.bash_export'
 
   eval-vars:
     desc: "Show environment variables for both clusters"
