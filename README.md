@@ -133,7 +133,7 @@ task infra:get-server-ips # Get external server IPs for both clusters
 
 ### HCP Terraform Configuration (Recommended)
 
-If using HCP Terraform, organize your variables into variable sets for optimal reusability:
+If using HCP Terraform, I recommend organizing your variables into variable sets:
 
 #### Variable Set: "HashiStack Common" (reusable across all workspaces)
 ```hcl
@@ -173,14 +173,14 @@ ssh_public_key = "ssh-rsa AAAAB3NzaC1yc2EAAA..."
 ```hcl
 gcp_region = "europe-southwest1"
 cluster_name = "gcp-dc1"
-owner = "pablo-diaz"  # Note: Use hyphens, not dots for GCP compatibility
+owner = "ownername"  # Note: Use hyphens, not dots.
 ```
 
 **DC2 Workspace (DC-cluster-2):**
 ```hcl
 gcp_region = "europe-west1"
 cluster_name = "gcp-dc2"
-owner = "pablo-diaz"  # Note: Use hyphens, not dots for GCP compatibility
+owner = "ownername" 
 ```
 
 > **⚠️ Important**: GCP tags must match the regex `(?:[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?)`. Use hyphens instead of dots in the `owner` variable.
